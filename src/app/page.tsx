@@ -1,6 +1,6 @@
 "use client"
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import "./mainpage.scss";
 
 const Header = () => (
@@ -33,10 +33,10 @@ const Account = () => (
   <div className="account">
     <h2 className="account__title">Мой Аккаунт</h2>
     <div className="account__details">
-      <Image src="/profile.jpg" alt="Профиль" width={100} height={100} className="account__profile-image" />
+      <Image src="/unknown.png" alt="Профиль" width={50} height={50} className="account__profile-image" />
       <div className="account__info">
-        <p>Имя: Джон Доу</p>
-        <p>Email: john.doe@example.com</p>
+        <span><h4>Логин:</h4> <p>JohnDoe</p></span>
+        <span><h4>Email: </h4> <p>john.doe@example.com</p></span>
         <button className="account__edit-button">Редактировать</button>
       </div>
     </div>
@@ -58,6 +58,8 @@ const ChatWindow = () => {
   const [chatTitle, setChatTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isManagingParticipants, setIsManagingParticipants] = useState(false);
+  const manageParticipantsRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSendMessage = () => {
     if (inputValue.trim() !== '') {
@@ -106,45 +108,70 @@ const ChatWindow = () => {
     setParticipants(participants.filter((participant) => participant.id !== id));
   };
 
+  useEffect(() => {
+    if (isEditingTitle && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (
+        manageParticipantsRef.current &&
+        !manageParticipantsRef.current.contains(event.target as Node) &&
+        !(event.target as HTMLElement).closest('.chat-window__manage-participants-button')
+      ) {
+        setIsManagingParticipants(false);
+      }
+    };
+
+    if (isManagingParticipants) {
+      document.addEventListener('mousedown', handleClick);
+    } else {
+      document.removeEventListener('mousedown', handleClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [isManagingParticipants]);
+
   return (
     <div className="chat-window">
       <div className="chat-window__header">
-        {participants.length > 1 ? (
-          <>
-            {isEditingTitle ? (
-              <input
-                type="text"
-                value={chatTitle}
-                onChange={handleTitleChange}
-                onBlur={toggleEditTitle}
-                className="chat-window__title-input"
-              />
-            ) : (
-              <div className='flex-div'>
-                <h2 className="chat-window__title" onClick={toggleEditTitle}>
-                  {chatTitle || 'Чат с друзьями'}
-                </h2>
-                <button onClick={toggleEditTitle} className="chat-window__edit-title-button">
-                  <Image src="/rename.png" alt="Отправить" width={20} height={20} />
-                </button>
-              </div>
-            )}
-
-            <div className='flex-div'>
-              <div className="chat-window__participants">Участников: 
-                {participants.length}
-              </div>
-              <button onClick={toggleManageParticipants} className="chat-window__manage-participants-button">
-                <Image src="/burger.png" alt="Отправить" width={15} height={15} />
-              </button>
-            </div>
-          </>
+        {isEditingTitle ? (
+          <div className="flex-div">
+            <input
+              type="text"
+              value={chatTitle}
+              onChange={handleTitleChange}
+              onBlur={toggleEditTitle}
+              className="chat-window__title-input"
+              ref={inputRef}
+            />
+          </div>
         ) : (
-          <h2 className="chat-window__title">Чат с {participants.find((p) => p.id !== 'me')?.name}</h2>
+          <div className="flex-div">
+            <h2 className="chat-window__title" onClick={toggleEditTitle}>
+              {participants.length > 2 ? chatTitle || 'Чат с друзьями' : `Чат с ${participants.find((p) => p.id !== 'me')?.name}`}
+            </h2>
+            {participants.length > 2 && (
+              <button onClick={toggleEditTitle} className="chat-window__edit-title-button">
+                <Image src="/rename.png" alt="Редактировать" width={20} height={20} />
+              </button>
+            )}
+          </div>
         )}
+        <div className="flex-div">
+          <div className="chat-window__participants">Участников: {participants.length}</div>
+          <button onClick={toggleManageParticipants} className="chat-window__manage-participants-button">
+            <Image src="/burger.png" alt="Управление участниками" width={15} height={15} />
+          </button>
+        </div>
       </div>
+
       {isManagingParticipants && (
-        <div className="chat-window__manage-participants">
+        <div className="chat-window__manage-participants" ref={manageParticipantsRef}>
           Управление участниками
           <button onClick={addParticipant} className="add-participant-button">
             Пригласить
@@ -158,7 +185,7 @@ const ChatWindow = () => {
                 <Image src={participant.avatar} alt={participant.name} width={30} height={30} />
                 <span>
                   {participant.name}
-                  </span>
+                </span>
                 {!participant.isAdmin && participant.id !== 'me' && (
                   <button onClick={() => removeParticipant(participant.id)} className="remove-participant-button">
                     Удалить
@@ -172,12 +199,25 @@ const ChatWindow = () => {
       <div className="chat-window__messages">
         {messages.map((message) => (
           <div key={message.id} className={`chat-window__message-line--${message.type}`}>
-            <div className="chat-window__message-avatar">
-              <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
-            </div>
-            <div className={`chat-window__message chat-window__message--${message.type}`}>
-              {message.content}
-            </div>
+            {message.type === 'received' ? (
+              <>
+                <div className="chat-window__message-avatar">
+                  <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                </div>
+                <div className={`chat-window__message chat-window__message--${message.type}`}>
+                  {message.content}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`chat-window__message chat-window__message--${message.type}`}>
+                  {message.content}
+                </div>
+                <div className="chat-window__message-avatar">
+                  <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>

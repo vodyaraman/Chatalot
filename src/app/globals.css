@@ -1,12 +1,14 @@
 :root {
   --background: #f8fbfc;
   --foreground: #171717;
+  --divcolor: #f3f3f3;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #131313;
     --foreground: #ededed;
+    --divcolor: #222;
   }
 }
 
@@ -22,20 +24,24 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+}
+
+.chat-app__body div,
+aside {
+  background-color: var(--divcolor);
 }
 
 ::-webkit-scrollbar {
-  width: 12px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
   background: #1a1a1a41;
-  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(45deg, #3498db, #9b59b6);
-  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -46,6 +52,10 @@ body {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+}
+
+*:focus {
+  outline: none;
 }
 
 .flex-div {
@@ -64,5 +74,42 @@ a {
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
+  }
+}
+
+/* Для больших экранов (десктопы) */
+@media (min-width: 1200px) {
+  .container {
+    max-width: 1140px;
+  }
+}
+
+/* Для средних экранов (планшеты в альбомной ориентации) */
+@media (max-width: 1032px) {
+  .account {
+    position: absolute !important;
+    top: 0px;
+    right: 0px;
+  }
+}
+
+/* Для планшетов в портретной ориентации */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .account {
+    position: absolute;
+  }
+}
+
+/* Для мобильных телефонов (ширина экрана от 576px) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .account {
+    position: absolute;
+  }
+}
+
+/* Для небольших мобильных телефонов (ширина экрана до 576px) */
+@media (max-width: 575.98px) {
+  .account {
+    position: absolute;
   }
 }
