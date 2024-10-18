@@ -186,12 +186,31 @@ const apiSlice = createApi({
 
 export const { useGetChatQuery, useGetChatListQuery } = apiSlice;
 
+const controlSlice = createSlice({
+  name: 'control',
+  initialState: {
+    isSidebarOpen: true,
+    isProfileVisible: false,
+  },
+  reducers: {
+    toggleProfile: (state) => {
+      state.isProfileVisible = !state.isProfileVisible;
+    },
+    toggleSidebar: (state) => {
+      state.isSidebarOpen = !state.isSidebarOpen;
+    },
+      },
+});
+
+export const { toggleSidebar, toggleProfile } = controlSlice.actions;
+
 // Store Setup
 const store = configureStore({
   reducer: {
     chats: chatsSlice.reducer,
     currentChat: currentChatSlice.reducer,
     account: accountSlice.reducer,
+    control: controlSlice.reducer,
     [apiSlice.reducerPath]: apiSlice.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(apiSlice.middleware),
@@ -208,4 +227,3 @@ const ReduxProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 );
 
 export default ReduxProvider;
-

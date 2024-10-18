@@ -7,7 +7,7 @@ import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
 import ReduxProvider from './api';
 import { useAppSelector, useAppDispatch } from './api';
-import { setCurrentChatId, setCurrentChat,  addMessage, addParticipant, removeParticipant, setCurrentChatTitle } from './api';
+import { setCurrentChatId, setCurrentChat, addMessage, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile } from './api';
 import { useGetChatQuery } from './api';
 import "./mainpage.scss";
 
@@ -16,15 +16,27 @@ type CompiledMessagesType = {
 };
 
 const Header = () => {
+  const dispatch = useAppDispatch();
   const account = useAppSelector((state) => state.account.account);
+
+  const handleAccountClick = () => {
+    dispatch(toggleProfile());
+  };
+
+  const handleSidebarToggle = () => {
+    dispatch(toggleSidebar());
+  };
 
   return (
     <header className="header">
       <div className="header__title">
         <Image src="/logo.png" alt="Профиль" width={35} height={45} objectFit='contain' className="header__title-logo" />
         CHATALOT
+        <button onClick={handleSidebarToggle} className="header__sidebar-toggle-button">
+        <Image src="/burger.png" alt="Чаты" width={15} height={15}/>
+        </button>
       </div>
-      <div className="header__account">
+      <div className="header__account" onClick={handleAccountClick}>
         <span className="header__username">{account?.username || 'Гость'}</span>
         <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={45} height={45} className="header__profile-image" />
       </div>
@@ -33,9 +45,10 @@ const Header = () => {
 };
 
 const Sidebar = () => {
-  const chats = useAppSelector((state) => state.chats.chats);
   const dispatch = useAppDispatch();
+  const chats = useAppSelector((state) => state.chats.chats);
   const currentChatId = useAppSelector((state) => state.chats.currentChatId);
+  const isSidebarOpen = useAppSelector((state) => state.control.isSidebarOpen);
   const { data: chatData, isSuccess } = useGetChatQuery(currentChatId || '', {
     skip: !currentChatId,
   });
@@ -48,14 +61,27 @@ const Sidebar = () => {
 
   const handleChatSelect = (chatId = "") => {
     dispatch(setCurrentChatId(chatId));
-    localStorage.setItem('currentChatId', chatId); 
+    localStorage.setItem('currentChatId', chatId);
   };
+
+  const handleAddChat = () => {
+    const newChat = {
+      id: `chat_${chats.length + 1}`,
+      title: `Новый чат ${chats.length + 1}`
+    };
+    dispatch(addChat(newChat));
+  };
+
+  if (!isSidebarOpen) {
+    return null; // Возвращаем null, если сайдбар закрыт
+  }
 
   return (
     <aside className="sidebar">
       <div className="sidebar__title">
         <h1>Список чатов</h1>
       </div>
+      <button onClick={handleAddChat} className="sidebar__add-chat-button">Добавить чат</button>
       <ul className="sidebar__contacts">
         {chats.map((chat) => (
           <li key={chat.id} className="sidebar__contact" onClick={() => handleChatSelect(chat.id)}>
@@ -70,6 +96,11 @@ const Sidebar = () => {
 
 const Account = () => {
   const account = useAppSelector((state) => state.account.account);
+  const isProfileVisible = useAppSelector((state) => state.control.isProfileVisible);
+
+  if (!isProfileVisible) {
+    return null;
+  }
 
   return (
     <div className="account">
@@ -126,7 +157,7 @@ const ChatWindow = () => {
         console.error('Ошибка компиляции MDX:', err);
       }
     }
-  
+
     messages.forEach((message) => {
       if (!compiledMessages[message.id.toString()]) {
         compileMDX(message.content, message.id.toString());
@@ -141,7 +172,7 @@ const ChatWindow = () => {
         userId: accountId,
         content: inputValue,
         images: [],
-      };      
+      };
       dispatch(addMessage(newMessage));
       setInputValue('');
     }
@@ -327,13 +358,13 @@ export default function ChatApp() {
   return (
     <ReduxProvider>
       <div className="chat-app">
-      <Header />
-      <div className="chat-app__body">
-        <Sidebar />
-        <ChatWindow />
-        <Account />
+        <Header />
+        <div className="chat-app__body">
+          <Sidebar />
+          <ChatWindow />
+          <Account />
+        </div>
       </div>
-    </div>
-    </ReduxProvider> 
+    </ReduxProvider>
   );
 }
