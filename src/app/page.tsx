@@ -5,75 +5,116 @@ import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
+import ReduxProvider from './api';
+import { useAppSelector, useAppDispatch } from './api';
+import { setCurrentChatId, setCurrentChat,  addMessage, addParticipant, removeParticipant, setCurrentChatTitle } from './api';
+import { useGetChatQuery } from './api';
 import "./mainpage.scss";
 
 type CompiledMessagesType = {
   [key: string]: React.ComponentType;
 };
 
-const Header = () => (
-  <header className="header">
-    <div className="header__title">
-      <Image src="/logo.png" alt="Профиль" width={35} height={45} objectFit='contain' className="header__title-logo" />
-      CHATALOT
-    </div>
-    <div className="header__account">
-      <span className="header__username">Джон Доу</span>
-      <Image src="/unknown.png" alt="Профиль" width={45} height={45} className="header__profile-image" />
-    </div>
-  </header>
-);
+const Header = () => {
+  const account = useAppSelector((state) => state.account.account);
 
-const Sidebar = () => (
-  <aside className="sidebar">
-    <div className="sidebar__search">
-      <input type="text" placeholder="Поиск" className="sidebar__search-input" />
-    </div>
-    <ul className="sidebar__contacts">
-      <li className="sidebar__contact">Алиса</li>
-      <li className="sidebar__contact">Боб</li>
-      <li className="sidebar__contact">Чарли</li>
-    </ul>
-  </aside>
-);
+  return (
+    <header className="header">
+      <div className="header__title">
+        <Image src="/logo.png" alt="Профиль" width={35} height={45} objectFit='contain' className="header__title-logo" />
+        CHATALOT
+      </div>
+      <div className="header__account">
+        <span className="header__username">{account?.username || 'Гость'}</span>
+        <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={45} height={45} className="header__profile-image" />
+      </div>
+    </header>
+  );
+};
 
-const Account = () => (
-  <div className="account">
-    <h2 className="account__title">Мой Аккаунт</h2>
-    <div className="account__details">
-      <Image src="/unknown.png" alt="Профиль" width={50} height={50} className="account__profile-image" />
-      <div className="account__info">
-        <span><h4>Логин:</h4> <p>JohnDoe</p></span>
-        <span><h4>Email: </h4> <p>john.doe@example.com</p></span>
-        <button className="account__edit-button">Редактировать</button>
+const Sidebar = () => {
+  const chats = useAppSelector((state) => state.chats.chats);
+  const dispatch = useAppDispatch();
+  const currentChatId = useAppSelector((state) => state.chats.currentChatId);
+  const { data: chatData, isSuccess } = useGetChatQuery(currentChatId || '', {
+    skip: !currentChatId,
+  });
+
+  useEffect(() => {
+    if (isSuccess && chatData) {
+      dispatch(setCurrentChat(chatData));
+    }
+  }, [isSuccess, chatData, dispatch]);
+
+  const handleChatSelect = (chatId = "") => {
+    dispatch(setCurrentChatId(chatId));
+    localStorage.setItem('currentChatId', chatId); 
+  };
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar__title">
+        <h1>Список чатов</h1>
+      </div>
+      <ul className="sidebar__contacts">
+        {chats.map((chat) => (
+          <li key={chat.id} className="sidebar__contact" onClick={() => handleChatSelect(chat.id)}>
+            {chat.title}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+};
+
+
+const Account = () => {
+  const account = useAppSelector((state) => state.account.account);
+
+  return (
+    <div className="account">
+      <h2 className="account__title">Мой Аккаунт</h2>
+      <div className="account__details">
+        <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={50} height={50} className="account__profile-image" />
+        <div className="account__info">
+          <span><h4>Логин:</h4> <p>{account?.username}</p></span>
+          <span><h4>Email:</h4> <p>{account?.email}</p></span>
+          <button className="account__edit-button">Редактировать</button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
+
 
 const ChatWindow = () => {
-  const [messages, setMessages] = useState([
-    { id: 1, userId: 'friend', senderName: 'Друг', avatar: '/unknown.png', content: 'Привет! Как дела?', type: 'received' },
-    { id: 2, userId: 'me', senderName: 'Вы', avatar: '/unknown.png', content: 'Хорошо, спасибо!', type: 'sent' },
-  ]);
+  const dispatch = useAppDispatch();
+  const chat = useAppSelector((state) => state.currentChat.currentChat);
+  const accountId = useAppSelector((state) => state.account.account?.id ?? '');
 
+  // Проверяем, является ли текущий пользователь администратором
+  const isAdmin = chat?.ownerId === accountId;
+
+  // Обновляем логику сообщений с корректной проверкой пользователя
+  const messages = (chat?.messages || []).map((message) => ({
+    ...message,
+    type: message.userId == accountId ? 'sent' : 'received',
+    avatar: chat?.participants[message.userId]?.avatar || '/unknown.png'
+  }));
+
+  const participants = chat?.participants ? Object.values(chat.participants) : [];
+  const chatTitle = chat?.title || '';
   const [inputValue, setInputValue] = useState('');
-  const [participants, setParticipants] = useState([
-    { id: 'me', name: 'Вы', avatar: '/unknown.png', isAdmin: true },
-    { id: 'friend', name: 'Друг', avatar: '/unknown.png', isAdmin: false },
-  ]);
-  const [chatTitle, setChatTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isManagingParticipants, setIsManagingParticipants] = useState(false);
   const manageParticipantsRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
   const [compiledMessages, setCompiledMessages] = useState<CompiledMessagesType>({});
 
   useEffect(() => {
     async function compileMDX(content = "", messageId = "") {
       try {
-        const formattedContent = content.replace(/\n/g, "\n"); // Замена пробелов на неразрывные пробелы
+        const formattedContent = content.replace(/\n/g, "\n");
         const compiledMDX = await evaluate(formattedContent, {
           ...runtime,
         });
@@ -92,19 +133,16 @@ const ChatWindow = () => {
       }
     });
   }, [messages, compiledMessages]);
-  
 
   const handleSendMessage = () => {
     if (inputValue.trim() !== '') {
       const newMessage = {
-        id: messages.length + 1,
-        userId: 'me',
-        senderName: 'Вы',
-        avatar: '/unknown.png',
+        id: (messages.length + 1).toString(),
+        userId: accountId,
         content: inputValue,
-        type: 'sent',
-      };
-      setMessages([...messages, newMessage]);
+        images: [],
+      };      
+      dispatch(addMessage(newMessage));
       setInputValue('');
     }
   };
@@ -114,25 +152,26 @@ const ChatWindow = () => {
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setChatTitle(e.target.value);
+    dispatch(setCurrentChatTitle(e.target.value));
   };
 
   const toggleManageParticipants = () => {
     setIsManagingParticipants(!isManagingParticipants);
   };
 
-  const addParticipant = () => {
+  const handleAddParticipant = () => {
     const newParticipant = {
       id: `participant_${participants.length + 1}`,
-      name: `Участник ${participants.length + 1}`,
+      username: `Участник ${participants.length + 1}`,
+      email: 'no.email@example.com',
       avatar: '/unknown.png',
       isAdmin: false,
     };
-    setParticipants([...participants, newParticipant]);
+    dispatch(addParticipant(newParticipant));
   };
 
-  const removeParticipant = (id: string) => {
-    setParticipants(participants.filter((participant) => participant.id !== id));
+  const handleRemoveParticipant = (id: string) => {
+    dispatch(removeParticipant(id));
   };
 
   useEffect(() => {
@@ -180,7 +219,7 @@ const ChatWindow = () => {
         ) : (
           <div className="flex-div">
             <h2 className="chat-window__title" onClick={toggleEditTitle}>
-              {participants.length > 2 ? chatTitle || 'Чат с друзьями' : `Чат с ${participants.find((p) => p.id !== 'me')?.name}`}
+              {participants.length > 2 ? chatTitle || 'Чат с друзьями' : `Чат с ${participants.find((p) => p.id !== 'me')?.username}`}
             </h2>
             {participants.length > 2 && (
               <button onClick={toggleEditTitle} className="chat-window__edit-title-button">
@@ -200,7 +239,7 @@ const ChatWindow = () => {
       {isManagingParticipants && (
         <div className="chat-window__manage-participants" ref={manageParticipantsRef}>
           Управление участниками
-          <button onClick={addParticipant} className="add-participant-button">
+          <button onClick={handleAddParticipant} className="add-participant-button">
             Пригласить
           </button>
           <button onClick={toggleManageParticipants} className="close-manage-participants-button">
@@ -209,12 +248,12 @@ const ChatWindow = () => {
           <ul className="participants-list">
             {participants.map((participant) => (
               <li key={participant.id} className="participant-item">
-                <Image src={participant.avatar} alt={participant.name} width={30} height={30} />
+                <Image src={participant.avatar} alt={participant.username} width={30} height={30} />
                 <span>
-                  {participant.name}
+                  {participant.username}
                 </span>
-                {!participant.isAdmin && participant.id !== 'me' && (
-                  <button onClick={() => removeParticipant(participant.id)} className="remove-participant-button">
+                {isAdmin && (
+                  <button onClick={() => handleRemoveParticipant(participant.id)} className="remove-participant-button">
                     Удалить
                   </button>
                 )}
@@ -234,7 +273,7 @@ const ChatWindow = () => {
               {message.type === 'received' ? (
                 <>
                   <div className="chat-window__message-avatar">
-                    <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                    <Image src={message.avatar} alt={""} width={30} height={30} />
                   </div>
                   <div className={`chat-window__message chat-window__message--${message.type}`}>
                     <MDXProvider>
@@ -250,7 +289,7 @@ const ChatWindow = () => {
                     </MDXProvider>
                   </div>
                   <div className="chat-window__message-avatar">
-                    <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                    <Image src={message.avatar} alt={""} width={30} height={30} />
                   </div>
                 </>
               )}
@@ -286,7 +325,8 @@ const ChatWindow = () => {
 
 export default function ChatApp() {
   return (
-    <div className="chat-app">
+    <ReduxProvider>
+      <div className="chat-app">
       <Header />
       <div className="chat-app__body">
         <Sidebar />
@@ -294,5 +334,6 @@ export default function ChatApp() {
         <Account />
       </div>
     </div>
+    </ReduxProvider> 
   );
 }
