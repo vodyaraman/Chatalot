@@ -33,7 +33,7 @@ const Header = () => {
         <Image src="/logo.png" alt="Профиль" width={35} height={45} objectFit='contain' className="header__title-logo" />
         CHATALOT
         <button onClick={handleSidebarToggle} className="header__sidebar-toggle-button">
-        <Image src="/burger.png" alt="Чаты" width={15} height={15}/>
+          <Image src="/burger.png" alt="Чаты" width={15} height={15} />
         </button>
       </div>
       <div className="header__account" onClick={handleAccountClick}>
@@ -80,8 +80,10 @@ const Sidebar = () => {
     <aside className="sidebar">
       <div className="sidebar__title">
         <h1>Список чатов</h1>
+        <button onClick={handleAddChat} className="sidebar__add-chat-button">
+          <Image src="/add.png" alt="Чаты" width={25} height={25} />
+        </button>
       </div>
-      <button onClick={handleAddChat} className="sidebar__add-chat-button">Добавить чат</button>
       <ul className="sidebar__contacts">
         {chats.map((chat) => (
           <li key={chat.id} className="sidebar__contact" onClick={() => handleChatSelect(chat.id)}>

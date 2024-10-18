@@ -90,7 +90,7 @@ a {
   .account {
     position: absolute !important;
     top: 0px;
-    right: 0px;
+    right: -6px;
   }
 }
 
