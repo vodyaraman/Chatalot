@@ -38,6 +38,10 @@
             margin: 0 10px;
             position: relative;
         }
+
+        &:hover {
+            scale: 1.05;
+        }
     }
 
     &__account {
@@ -45,6 +49,9 @@
         align-items: center;
         justify-content: flex-end;
         cursor: pointer;
+        &:hover {
+            color: #2980b9;
+        }
     }
 
     &__profile-image {
@@ -63,7 +70,6 @@
 
 .sidebar {
     width: 250px;
-    color: #fff;
     display: flex;
     flex-direction: column;
     border-radius: 20px;
@@ -94,9 +100,10 @@
         padding: 15px;
         border-bottom: 1px solid #4a6079;
         cursor: pointer;
+        font-weight: 600;
 
         &:hover {
-            background-color: #2f3b52;
+            scale: 1.02;
         }
     }
 }
@@ -118,7 +125,6 @@
         align-items: center;
         padding: calc(10px + 0.5%);
         background-color: #2E3B8F;
-        color: #fff;
         border-radius: 15px 15px 0 0;
     }
 
@@ -151,8 +157,7 @@
     &__manage-participants-button {
         display: flex;
         justify-content: center;
-        color: #fff;
-        background-color: #242324;
+        filter: brightness(1.2);
         border: none;
         padding: 5px;
         margin-left: 10px;
@@ -160,7 +165,7 @@
         cursor: pointer;
 
         &:hover {
-            background-color: #353335;
+            background-color: #4f58aa;
         }
     }
 
@@ -168,7 +173,6 @@
         position: relative;
         width: 100%;
         background-color: #2E3B8F;
-        color: #fff;
         padding: 10px;
         overflow-y: auto;
         max-height: 40%;
@@ -206,7 +210,6 @@
                 margin-left: auto;
                 padding: 3px;
                 background-color: #e74c3c;
-                color: #fff;
                 border: none;
                 border-radius: 5px;
                 cursor: pointer;
@@ -221,11 +224,11 @@
         .close-manage-participants-button {
             padding: 3px;
             margin-left: 10px;
-            background-color: #3498db;
-            color: #fff;
+            font-weight: 600;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            filter: brightness(1.2);
 
             &:hover {
                 background-color: #2980b9;
@@ -283,18 +286,76 @@
             color: #2c3e50;
             align-self: flex-start;
         }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        p {
+            line-height: 1.6;
+            font-size: 0.85rem;
+            font-weight: 400;
+        }
+
+        a {
+            color: #E91E63;
+            text-decoration: underline;
+
+            &:hover {
+                color: #D81B60;
+            }
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5rem;
+
+            li {
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        blockquote {
+            margin: 1rem 0;
+            padding-left: 1rem;
+            border-left: 3px solid #ccc;
+            color: #666;
+            font-style: italic;
+        }
+
+        code {
+            filter: brightness(1.2);
+            background-color: #000;
+            border-radius: 5px;
+            color: #c9c7c7;
+        }
+
+        img {
+            display: flex;
+            position: relative;
+            width: 100%;
+            object-fit: fill;
+            margin-top: 10px;
+        }
     }
 
     &__input {
         display: flex;
         position: relative;
         padding: 10px;
-        background-color: #2E3B8F;
         border-radius: 0 0 20px 20px;
         justify-content: center;
         align-items: center;
 
         &-field {
+            font-weight: 500;
+            color: inherit;
             flex: 1;
             padding: 10px;
             padding-right: 40px;
@@ -306,10 +367,9 @@
 
         &-button {
             position: absolute;
-            right: 20px;
+            right: 30px;
             background-color: transparent;
             border: none;
-            color: #fff;
             border-radius: 5px;
             margin-left: 10px;
         }
@@ -354,10 +414,12 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        span{
+
+        span {
             display: inline-flex;
             width: 100%;
             margin: 10px;
+
             p {
                 margin-left: 5px;
             }
@@ -369,7 +431,6 @@
         margin-top: 10px;
         padding: 5px 0px;
         background-color: #8696a1;
-        color: #fff;
         border: none;
         border-radius: 5px;
         cursor: pointer;

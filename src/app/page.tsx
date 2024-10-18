@@ -1,7 +1,15 @@
 "use client"
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
+import * as runtime from 'react/jsx-runtime';
+import { evaluate } from '@mdx-js/mdx';
+import { MDXProvider } from '@mdx-js/react';
+import TextareaAutosize from 'react-textarea-autosize';
 import "./mainpage.scss";
+
+type CompiledMessagesType = {
+  [key: string]: React.ComponentType;
+};
 
 const Header = () => (
   <header className="header">
@@ -43,7 +51,6 @@ const Account = () => (
   </div>
 );
 
-
 const ChatWindow = () => {
   const [messages, setMessages] = useState([
     { id: 1, userId: 'friend', senderName: 'Друг', avatar: '/unknown.png', content: 'Привет! Как дела?', type: 'received' },
@@ -61,6 +68,32 @@ const ChatWindow = () => {
   const manageParticipantsRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const [compiledMessages, setCompiledMessages] = useState<CompiledMessagesType>({});
+
+  useEffect(() => {
+    async function compileMDX(content = "", messageId = "") {
+      try {
+        const formattedContent = content.replace(/\n/g, "\n"); // Замена пробелов на неразрывные пробелы
+        const compiledMDX = await evaluate(formattedContent, {
+          ...runtime,
+        });
+        setCompiledMessages((prevMessages) => ({
+          ...prevMessages,
+          [messageId]: compiledMDX.default,
+        }));
+      } catch (err) {
+        console.error('Ошибка компиляции MDX:', err);
+      }
+    }
+  
+    messages.forEach((message) => {
+      if (!compiledMessages[message.id.toString()]) {
+        compileMDX(message.content, message.id.toString());
+      }
+    });
+  }, [messages, compiledMessages]);
+  
+
   const handleSendMessage = () => {
     if (inputValue.trim() !== '') {
       const newMessage = {
@@ -73,12 +106,6 @@ const ChatWindow = () => {
       };
       setMessages([...messages, newMessage]);
       setInputValue('');
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
     }
   };
 
@@ -196,42 +223,61 @@ const ChatWindow = () => {
           </ul>
         </div>
       )}
+
+      {/*Окно чата*/}
+
       <div className="chat-window__messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`chat-window__message-line--${message.type}`}>
-            {message.type === 'received' ? (
-              <>
-                <div className="chat-window__message-avatar">
-                  <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
-                </div>
-                <div className={`chat-window__message chat-window__message--${message.type}`}>
-                  {message.content}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className={`chat-window__message chat-window__message--${message.type}`}>
-                  {message.content}
-                </div>
-                <div className="chat-window__message-avatar">
-                  <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+        {messages.map((message) => {
+          const CompiledContent = compiledMessages[message.id.toString()];
+          return (
+            <div key={message.id} className={`chat-window__message-line--${message.type}`}>
+              {message.type === 'received' ? (
+                <>
+                  <div className="chat-window__message-avatar">
+                    <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                  </div>
+                  <div className={`chat-window__message chat-window__message--${message.type}`}>
+                    <MDXProvider>
+                      {CompiledContent ? <CompiledContent /> : <div>Загрузка...</div>}
+                    </MDXProvider>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`chat-window__message chat-window__message--${message.type}`}>
+                    <MDXProvider>
+                      {CompiledContent ? <CompiledContent /> : <div>Загрузка...</div>}
+                    </MDXProvider>
+                  </div>
+                  <div className="chat-window__message-avatar">
+                    <Image src={message.avatar} alt={message.senderName} width={30} height={30} />
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+
       <div className="chat-window__input">
-        <input
-          type="text"
+        <TextareaAutosize
+          minRows={1}
+          maxRows={6}
           placeholder="Введите сообщение..."
           className="chat-window__input-field"
           value={inputValue}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
-          onKeyUp={handleKeyPress}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          style={{ resize: 'none' }}
         />
         <button className="chat-window__input-button" onClick={handleSendMessage}>
-          <Image src="/sendmessage.svg" alt="Отправить" width={25} height={25} />
+          <Image src="/sendmessage.svg" alt="Отправить" width={21} height={21} />
         </button>
       </div>
     </div>
