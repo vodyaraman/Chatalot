@@ -68,20 +68,22 @@ const Register = () => {
       {error && <div className="register__error">{error}</div>}
       <input
         className="register__input"
-        type="text"
+        name="text"
         placeholder="Имя пользователя (от 3 до 15 символов)"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
       />
       <input
         className="register__input"
-        type="email"
+        name="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <input
         className="register__input"
+        name="password"
+        autoComplete='true'
         type={showPassword ? 'text' : 'password'}
         placeholder="Пароль (от 3 до 15 символов)"
         value={password}
@@ -89,6 +91,8 @@ const Register = () => {
       />
       <input
         className="register__input"
+        name='password'
+        autoComplete='true'
         type={showPassword ? 'text' : 'password'}
         placeholder="Повторите пароль"
         value={confirmPassword}
@@ -137,14 +141,14 @@ const Login = () => {
       {error && <div className="login__error">{error}</div>}
       <input
         className="login__input"
-        type="email"
+        name="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <input
         className="login__input"
-        type="password"
+        name="password"
         placeholder="Пароль"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -263,23 +267,23 @@ const Account = () => {
       <h2 className="account__title">Мой Аккаунт</h2>
       <div className="account__details">
         <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={50} height={50} className="account__profile-image" />
+        <div className="account__upload-photo">
+          <input
+            type="file"
+            id="upload-photo-input"
+            style={{ display: 'none' }}
+            onChange={handleImageChange}
+          />
+          <label htmlFor="upload-photo-input" className="account__upload-button">
+            Загрузить фотографию
+          </label>
+        </div>
         <div className="account__info">
           <span><h4>Логин:</h4> <p>{account?.username}</p></span>
           <span><h4>Email:</h4> <p>{account?.email}</p></span>
           <button className="account__edit-button">Редактировать</button>
           <button className="account__logout-button" onClick={handleLogout}>Выйти из аккаунта</button>
         </div>
-      </div>
-      <div className="account__upload-photo">
-        <input
-          type="file"
-          id="upload-photo-input"
-          style={{ display: 'none' }}
-          onChange={handleImageChange}
-        />
-        <label htmlFor="upload-photo-input" className="account__upload-button">
-          Загрузить фотографию
-        </label>
       </div>
     </div>
   );
@@ -558,7 +562,7 @@ export default function ChatApp() {
               handleShowLogin={handleShowLogin}
               handleShowRegister={handleShowRegister}
             />
-            <img src="https://st4.depositphotos.com/2673929/27392/i/450/depositphotos_273926318-stock-photo-white-office-interior-with-meeting.jpg" alt="" className='chat-app__auth-image'/>
+            <img src="https://st4.depositphotos.com/2673929/27392/i/450/depositphotos_273926318-stock-photo-white-office-interior-with-meeting.jpg" alt="" className='chat-app__auth-image' />
           </div>
         )}
       </div>
@@ -603,7 +607,7 @@ function AuthOptions({
   return (
     <div className="chat-app__auth">
       <h2 className="chat-app__auth-title">Вы не вошли в систему
-      <Image src="/logo.png" alt="Профиль" width={30} height={40} objectFit='contain' className="header__title-logo auth-logo" />
+        <Image src="/logo.png" alt="Профиль" width={30} height={40} objectFit='contain' className="header__title-logo auth-logo" />
       </h2>
       <div className="chat-app__auth-buttons">
         {!showLogin && !showRegister && (

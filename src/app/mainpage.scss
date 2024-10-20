@@ -620,6 +620,7 @@
     }
 
     &__info {
+        margin-top: 10px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -636,7 +637,7 @@
         }
     }
 
-    &__edit-button {
+    &__edit-button, &__logout-button {
         width: 50%;
         margin-top: 10px;
         padding: 5px 0px;
@@ -647,6 +648,18 @@
 
         &:hover {
             background-color: #2980b9;
+        }
+    }
+
+    &__logout-button {
+        position: absolute;
+        bottom: 25px;
+        width: 70%;
+        background-color: #b92929;
+        color: #fff;
+
+        &:hover {
+            background-color: #b92929;
         }
     }
 }
