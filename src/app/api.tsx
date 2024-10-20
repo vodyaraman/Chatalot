@@ -16,8 +16,9 @@ export interface Message {
 
 // Participant Type
 export interface Account {
-  id: string;
+  id: string; 
   username: string;
+  password?: string;
   email: string;
   avatar: string;
 }
@@ -108,7 +109,6 @@ const initialCurrentChatState: CurrentChatState = {
   },
 };
 
-
 const currentChatSlice = createSlice({
   name: 'currentChat',
   initialState: initialCurrentChatState,
@@ -118,7 +118,7 @@ const currentChatSlice = createSlice({
         state.currentChat.title = action.payload;
       }
     },
-            setCurrentChat: (state, action: PayloadAction<Chat>) => {
+    setCurrentChat: (state, action: PayloadAction<Chat>) => {
       state.currentChat = action.payload;
     },
     addMessage: (state, action: PayloadAction<Message>) => {
@@ -173,7 +173,7 @@ export const { setAccount, clearAccount } = accountSlice.actions;
 // API Slice - Managing API requests with RTK Query
 const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3030/' }),
   endpoints: (builder) => ({
     getChatList: builder.query<{ id: string; title: string }[], void>({
       query: () => 'chats/list',
@@ -181,10 +181,42 @@ const apiSlice = createApi({
     getChat: builder.query<Chat, string>({
       query: (chatId) => `chats/${chatId}`,
     }),
+    createUser: builder.mutation<Account, Partial<Account>>({
+      query: (newUser) => ({
+        url: 'users',
+        method: 'POST',
+        body: newUser,
+      }),
+    }),
+    authenticateUser: builder.mutation<{ accessToken: string; user: Account }, { email: string; password: string }>({
+      query: (credentials) => ({
+        url: 'authentication',
+        method: 'POST',
+        body: {
+          strategy: 'local',
+          ...credentials,
+        },
+      }),
+    }),
+    getAccountByToken: builder.query<Account, void>({
+      query: () => ({
+        url: 'users',
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        params: {
+          $limit: 10,
+        },
+      }),
+      transformResponse: (response: { data: Account[] }) => {
+        return response.data[0];
+      },
+    }),    
   }),
 });
 
-export const { useGetChatQuery, useGetChatListQuery } = apiSlice;
+export const { useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useGetAccountByTokenQuery } = apiSlice;
 
 const controlSlice = createSlice({
   name: 'control',
@@ -199,7 +231,7 @@ const controlSlice = createSlice({
     toggleSidebar: (state) => {
       state.isSidebarOpen = !state.isSidebarOpen;
     },
-      },
+  },
 });
 
 export const { toggleSidebar, toggleProfile } = controlSlice.actions;

@@ -1,3 +1,14 @@
+@keyframes fadeInFromCenter {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
 @keyframes slide-left {
     0% {
         transform: translateX(-10%);
@@ -34,7 +45,150 @@
         position: relative;
         margin: 0 6px;
     }
+
+    &__auth-window {
+        position: relative;
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+        flex-direction: row;
+        
+    }
+
+    &__auth-image {
+        position: relative;
+        top: 0;
+        right: 0;
+        width: 50%;
+        height: 100vh;
+        object-fit: cover;
+    }
+
+    &__auth {
+        position: relative;
+        display: flex;
+        text-align: center;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        width: 50%;
+        padding-bottom: 50px;
+        min-width: 450px;
+        height: 100vh;
+        filter: brightness(1.3);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+        &-title {
+            position: relative;
+            display: flex;
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            margin-left: 10px;
+            color: #333;
+        }
+
+        &-buttons {
+            display: flex;
+            margin-top: 20px;
+        }
+
+        .chat-app__auth-button {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            margin-right: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: #fff;
+            transition: background-color 0.3s ease;
+
+            &:hover {
+                background-color: #0056b3;
+            }
+
+            &.alt {
+                position: absolute;
+                top: 15px;
+                left: 10px;
+                animation: slide-left 0.8s ease-in-out;
+            }
+        }
+    }
 }
+
+.login, .register {
+    text-align: center;
+    padding: 20px;
+    border-radius: 8px;
+    min-width: 350px;
+    animation: fadeInFromCenter 0.3s ease-out;
+
+    &__title {
+        font-size: 28px;
+        margin-bottom: 20px;
+        color: #444;
+    }
+
+    &__error {
+        position: relative;
+        color: red;
+    }
+
+    &__show-password {
+        position: relative;
+        display: flex;
+        margin-top: -7px;
+        margin-bottom: 10px;
+        width: 100%;
+        text-align: left;
+        flex-direction: row-reverse;
+        input {
+            margin-left: 5px;
+            margin-right: 5px;
+        }
+    }
+
+    &__input {
+        display: block;
+        margin: 15px auto;
+        padding: 12px;
+        width: 100%;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        font-size: 0.8rem;
+
+        &:focus {
+            border-color: #007bff;
+            font-size: 1rem;
+            font-weight: 550;   
+            background-color: #fff;
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+        }
+    }
+
+    &__button {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: #fff;
+        transition: background-color 0.3s ease;
+
+        &:hover {
+            background-color: #0056b3;
+        }
+    }
+}
+
 
 .header {
     display: flex;

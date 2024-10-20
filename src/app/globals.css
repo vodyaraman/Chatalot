@@ -113,4 +113,13 @@ a {
   .account {
     position: absolute;
   }
+
+  .chat-app__auth {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  .chat-app__auth-image {
+    display: none !important;
+  }
 }

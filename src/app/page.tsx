@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client"
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
@@ -5,15 +6,154 @@ import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
-import ReduxProvider from './api';
+import ReduxProvider, { clearAccount, useGetAccountByTokenQuery } from './api';
 import { useAppSelector, useAppDispatch } from './api';
-import { setCurrentChatId, setCurrentChat, addMessage, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile } from './api';
+import { setCurrentChatId, setCurrentChat, addMessage, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
 import { useGetChatQuery } from './api';
 import "./mainpage.scss";
 
 type CompiledMessagesType = {
   [key: string]: React.ComponentType;
 };
+
+// Register Component
+const Register = () => {
+  const [createUser] = useCreateUserMutation();
+  const [authenticateUser] = useAuthenticateUserMutation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleRegister = async () => {
+    if (!email || !password || !confirmPassword || !username) {
+      setError('Все поля должны быть заполнены');
+      return;
+    }
+    if (username.length < 3 || username.length > 15) {
+      setError('Имя пользователя должно содержать от 3 до 15 символов');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Пароли не совпадают');
+      return;
+    }
+    if (password.length < 3 || password.length > 15) {
+      setError('Пароль должен содержать от 3 до 15 символов');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Введите корректный адрес электронной почты');
+      return;
+    }
+    try {
+      await createUser({ email, password, username });
+      const { data } = await authenticateUser({ email, password });
+      if (data?.accessToken) {
+        localStorage.setItem('authToken', data.accessToken);
+        window.location.reload();
+      }
+    } catch (error) {
+      setError('Ошибка регистрации, попробуйте снова');
+      console.error('Registration failed:', error);
+    }
+  };
+
+  return (
+    <div className="register">
+      <h2 className="register__title">Регистрация</h2>
+      {error && <div className="register__error">{error}</div>}
+      <input
+        className="register__input"
+        type="text"
+        placeholder="Имя пользователя (от 3 до 15 символов)"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
+      <input
+        className="register__input"
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <input
+        className="register__input"
+        type={showPassword ? 'text' : 'password'}
+        placeholder="Пароль (от 3 до 15 символов)"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <input
+        className="register__input"
+        type={showPassword ? 'text' : 'password'}
+        placeholder="Повторите пароль"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+      />
+      <label className="register__show-password">
+        <input
+          type="checkbox"
+          checked={showPassword}
+          onChange={() => setShowPassword(!showPassword)}
+        />
+        Показать пароль
+      </label>
+      <button className="register__button" onClick={handleRegister}>Продолжить</button>
+    </div>
+  );
+};
+
+// Login Component
+const Login = () => {
+  const [authenticateUser] = useAuthenticateUserMutation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Все поля должны быть заполнены');
+      return;
+    }
+    try {
+      const { data } = await authenticateUser({ email, password });
+      if (data?.accessToken) {
+        localStorage.setItem('authToken', data.accessToken);
+        window.location.reload();
+      }
+    } catch (error) {
+      setError('Ошибка входа, попробуйте снова');
+      console.error('Login failed:', error);
+    }
+  };
+
+  return (
+    <div className="login">
+      <h2 className="login__title">Вход</h2>
+      {error && <div className="login__error">{error}</div>}
+      <input
+        className="login__input"
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <input
+        className="login__input"
+        type="password"
+        placeholder="Пароль"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <button className="login__button" onClick={handleLogin}>Продолжить</button>
+    </div>
+  );
+};
+
 
 const Header = () => {
   const dispatch = useAppDispatch();
@@ -99,6 +239,20 @@ const Sidebar = () => {
 const Account = () => {
   const account = useAppSelector((state) => state.account.account);
   const isProfileVisible = useAppSelector((state) => state.control.isProfileVisible);
+  const dispatch = useAppDispatch();
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    dispatch(clearAccount());
+    window.location.reload();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      console.log('Selected file:', file);
+    }
+  };
 
   if (!isProfileVisible) {
     return null;
@@ -113,11 +267,24 @@ const Account = () => {
           <span><h4>Логин:</h4> <p>{account?.username}</p></span>
           <span><h4>Email:</h4> <p>{account?.email}</p></span>
           <button className="account__edit-button">Редактировать</button>
+          <button className="account__logout-button" onClick={handleLogout}>Выйти из аккаунта</button>
         </div>
+      </div>
+      <div className="account__upload-photo">
+        <input
+          type="file"
+          id="upload-photo-input"
+          style={{ display: 'none' }}
+          onChange={handleImageChange}
+        />
+        <label htmlFor="upload-photo-input" className="account__upload-button">
+          Загрузить фотографию
+        </label>
       </div>
     </div>
   );
 };
+
 
 
 const ChatWindow = () => {
@@ -357,16 +524,107 @@ const ChatWindow = () => {
 };
 
 export default function ChatApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [showLogin, setShowLogin] = useState<boolean>(false);
+  const [showRegister, setShowRegister] = useState<boolean>(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleShowLogin = () => {
+    setShowLogin(true);
+    setShowRegister(false);
+  };
+
+  const handleShowRegister = () => {
+    setShowRegister(true);
+    setShowLogin(false);
+  };
+
   return (
     <ReduxProvider>
       <div className="chat-app">
-        <Header />
-        <div className="chat-app__body">
-          <Sidebar />
-          <ChatWindow />
-          <Account />
-        </div>
+        {isAuthenticated ? (
+          <AuthenticatedApp />
+        ) : (
+          <div className='chat-app__auth-window'>
+            <AuthOptions
+              showLogin={showLogin}
+              showRegister={showRegister}
+              handleShowLogin={handleShowLogin}
+              handleShowRegister={handleShowRegister}
+            />
+            <img src="https://st4.depositphotos.com/2673929/27392/i/450/depositphotos_273926318-stock-photo-white-office-interior-with-meeting.jpg" alt="" className='chat-app__auth-image'/>
+          </div>
+        )}
       </div>
     </ReduxProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const dispatch = useAppDispatch();
+
+  const { data } = useGetAccountByTokenQuery();
+
+  useEffect(() => {
+    if (data) {
+      dispatch(setAccount(data));
+    }
+  }, [data, dispatch]);
+
+  return (
+    <>
+      <Header />
+      <div className="chat-app__body">
+        <Sidebar />
+        <ChatWindow />
+        <Account />
+      </div>
+    </>
+  );
+}
+
+function AuthOptions({
+  showLogin,
+  showRegister,
+  handleShowLogin,
+  handleShowRegister,
+}: {
+  showLogin: boolean;
+  showRegister: boolean;
+  handleShowLogin: () => void;
+  handleShowRegister: () => void;
+}) {
+  return (
+    <div className="chat-app__auth">
+      <h2 className="chat-app__auth-title">Вы не вошли в систему
+      <Image src="/logo.png" alt="Профиль" width={30} height={40} objectFit='contain' className="header__title-logo auth-logo" />
+      </h2>
+      <div className="chat-app__auth-buttons">
+        {!showLogin && !showRegister && (
+          <>
+            <button className="chat-app__auth-button" onClick={handleShowLogin}>Войти</button>
+            <button className="chat-app__auth-button" onClick={handleShowRegister}>Зарегистрироваться</button>
+          </>
+        )}
+      </div>
+      {showLogin && (
+        <>
+          <Login />
+          <button className="chat-app__auth-button alt" onClick={handleShowRegister}>Регистрация</button>
+        </>
+      )}
+      {showRegister && (
+        <>
+          <Register />
+          <button className="chat-app__auth-button alt" onClick={handleShowLogin}>Вход</button>
+        </>
+      )}
+    </div>
   );
 }
