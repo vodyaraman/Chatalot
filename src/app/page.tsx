@@ -6,15 +6,21 @@ import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
-import ReduxProvider, { clearAccount, useGetAccountByTokenQuery } from './api';
+import feathersClient from './feathersClient';
+import ReduxProvider, { clearAccount, Message, setChats, useCreateChatMutation, useGetAccountByTokenQuery, useGetMessagesByChatIdQuery, useSendMessageMutation } from './api';
 import { useAppSelector, useAppDispatch } from './api';
-import { setCurrentChatId, setCurrentChat, addMessage, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
-import { useGetChatQuery } from './api';
+import { setCurrentChatId, setCurrentChat, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
+import { useGetChatQuery, useGetChatListQuery } from './api';
 import "./mainpage.scss";
 
 type CompiledMessagesType = {
   [key: string]: React.ComponentType;
 };
+
+interface LocalMessage extends Message {
+  type: 'sent' | 'received';
+  avatar: string;
+}
 
 // Register Component
 const Register = () => {
@@ -190,18 +196,11 @@ const Header = () => {
 
 const Sidebar = () => {
   const dispatch = useAppDispatch();
+  const [createChat] = useCreateChatMutation();
   const chats = useAppSelector((state) => state.chats.chats);
-  const currentChatId = useAppSelector((state) => state.chats.currentChatId);
-  const isSidebarOpen = useAppSelector((state) => state.control.isSidebarOpen);
-  const { data: chatData, isSuccess } = useGetChatQuery(currentChatId || '', {
-    skip: !currentChatId,
-  });
+  const account = useAppSelector((state) => state.account.account);
 
-  useEffect(() => {
-    if (isSuccess && chatData) {
-      dispatch(setCurrentChat(chatData));
-    }
-  }, [isSuccess, chatData, dispatch]);
+  const isSidebarOpen = useAppSelector((state) => state.control.isSidebarOpen);
 
   const handleChatSelect = (chatId = "") => {
     dispatch(setCurrentChatId(chatId));
@@ -209,15 +208,32 @@ const Sidebar = () => {
   };
 
   const handleAddChat = () => {
-    const newChat = {
-      id: `chat_${chats.length + 1}`,
-      title: `Новый чат ${chats.length + 1}`
-    };
-    dispatch(addChat(newChat));
+    if (account) {
+      const newChat = {
+        title: 'Новый чат',
+        ownerId: account?.id,
+        participants: {
+          'user1': {
+            id: account.id,
+            username: account.username,
+            email: account.email,
+            avatar: account.avatar
+          }
+        }
+      };
+      createChat(newChat)
+        .unwrap()
+        .then((createdChat) => {
+          dispatch(addChat(createdChat));
+        })
+        .catch((error) => {
+          console.error('Failed to create chat:', error);
+        });
+    }
   };
 
   if (!isSidebarOpen) {
-    return null; // Возвращаем null, если сайдбар закрыт
+    return null;
   }
 
   return (
@@ -293,18 +309,52 @@ const Account = () => {
 
 const ChatWindow = () => {
   const dispatch = useAppDispatch();
+  const [sendMessage] = useSendMessageMutation();
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+
+  const currentChatId = useAppSelector((state) => state.chats.currentChatId);
+
+  const { data: chatData, isSuccess: chatSuccess } = useGetChatQuery(currentChatId || '', {
+    skip: !currentChatId,
+  });
+
+  useEffect(() => {
+    if (chatSuccess && chatData) {
+      dispatch(setCurrentChat(chatData));
+    }
+  }, [chatSuccess, chatData, dispatch]);
+
   const chat = useAppSelector((state) => state.currentChat.currentChat);
   const accountId = useAppSelector((state) => state.account.account?.id ?? '');
 
   // Проверяем, является ли текущий пользователь администратором
   const isAdmin = chat?.ownerId === accountId;
 
-  // Обновляем логику сообщений с корректной проверкой пользователя
-  const messages = (chat?.messages || []).map((message) => ({
-    ...message,
-    type: message.userId == accountId ? 'sent' : 'received',
-    avatar: chat?.participants[message.userId]?.avatar || '/unknown.png'
-  }));
+  // Запрашиваем сообщения для текущего чата
+  const { data: messagesData, isSuccess } = useGetMessagesByChatIdQuery(chat?.id || '', {
+    skip: !chat?.id,
+  });
+
+  useEffect(() => {
+    if (isSuccess && messagesData) {
+      setMessages(
+        messagesData.map((message) => ({
+          ...message,
+          type: message.userId === accountId ? 'sent' : 'received',
+          avatar: chat?.participants[message.userId]?.avatar || '/unknown.png',
+        }))
+      );
+    } else if (chat?.messages) {
+      setMessages(
+        chat.messages.map((message) => ({
+          ...message,
+          type: message.userId === accountId ? 'sent' : 'received',
+          avatar: chat?.participants[message.userId]?.avatar || '/unknown.png',
+        }))
+      );
+    }
+  }, [isSuccess, messagesData, chat, accountId]);
+
 
   const participants = chat?.participants ? Object.values(chat.participants) : [];
   const chatTitle = chat?.title || '';
@@ -332,24 +382,38 @@ const ChatWindow = () => {
     }
 
     messages.forEach((message) => {
-      if (!compiledMessages[message.id.toString()]) {
-        compileMDX(message.content, message.id.toString());
+      if (!compiledMessages[message.id?.toString() || 0]) {
+        compileMDX(message.content, message.id?.toString());
       }
     });
   }, [messages, compiledMessages]);
 
-  const handleSendMessage = () => {
-    if (inputValue.trim() !== '') {
+  const handleSendMessage = async () => {
+    if (inputValue.trim() !== '' && currentChatId) {
       const newMessage = {
-        id: (messages.length + 1).toString(),
+        chatId: currentChatId,
         userId: accountId,
         content: inputValue,
-        images: [],
       };
-      dispatch(addMessage(newMessage));
-      setInputValue('');
+
+      try {
+        const savedMessage = await sendMessage(newMessage).unwrap();
+
+        const updatedMessage: LocalMessage = {
+          ...savedMessage,
+          type: savedMessage.userId === accountId ? 'sent' : 'received',
+          avatar: chat?.participants[savedMessage.userId]?.avatar || '/unknown.png'
+        };
+      
+        setMessages((prevMessages) => [...prevMessages, updatedMessage]);
+        setInputValue('');
+      } catch (error) {
+        console.error('Ошибка при отправке сообщения:', error);
+        // Здесь можно добавить отображение уведомления об ошибке
+      }
     }
   };
+
 
   const toggleEditTitle = () => {
     setIsEditingTitle(!isEditingTitle);
@@ -471,7 +535,7 @@ const ChatWindow = () => {
 
       <div className="chat-window__messages">
         {messages.map((message) => {
-          const CompiledContent = compiledMessages[message.id.toString()];
+          const CompiledContent = compiledMessages[message.id?.toString() || 0];
           return (
             <div key={message.id} className={`chat-window__message-line--${message.type}`}>
               {message.type === 'received' ? (
@@ -573,13 +637,21 @@ export default function ChatApp() {
 function AuthenticatedApp() {
   const dispatch = useAppDispatch();
 
-  const { data } = useGetAccountByTokenQuery();
+  const { data: accountData } = useGetAccountByTokenQuery();  // Переименовал data в accountData
+  const { data: chatListData } = useGetChatListQuery();       // Переименовал data в chatListData
 
   useEffect(() => {
-    if (data) {
-      dispatch(setAccount(data));
+    if (accountData) {
+      dispatch(setAccount(accountData));
     }
-  }, [data, dispatch]);
+  }, [accountData, dispatch]);
+
+  useEffect(() => {
+    if (chatListData) {
+      console.log(chatListData);
+      dispatch(setChats(chatListData)); // Правильно обращаемся к chatListData.data для получения массива значений
+    }
+  }, [chatListData, dispatch]);
 
   return (
     <>
@@ -592,6 +664,7 @@ function AuthenticatedApp() {
     </>
   );
 }
+
 
 function AuthOptions({
   showLogin,

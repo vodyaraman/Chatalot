@@ -8,15 +8,17 @@ import React from 'react';
 
 // Message Type
 export interface Message {
-  id: string;
+  id?: string;
+  chatId: string;
   userId: string;
   content: string;
-  images: string[];
+  images?: string;
+  createdAt?: Date;
 }
 
 // Participant Type
 export interface Account {
-  id: string; 
+  id: string;
   username: string;
   password?: string;
   email: string;
@@ -25,7 +27,7 @@ export interface Account {
 
 // Chat Type
 export interface Chat {
-  id: string;
+  id?: string;
   title: string;
   participants: { [key: string]: Account };
   ownerId: string;
@@ -34,15 +36,12 @@ export interface Chat {
 
 // Chats Slice - обновленный
 export type ChatsState = {
-  chats: { id: string, title: string }[];
+  chats: Chat[];
   currentChatId: string | null;
 };
 
 const initialChatsState: ChatsState = {
   chats: [
-    { id: 'chat1', title: 'Чат с друзьями' },
-    { id: 'chat2', title: 'Рабочая группа' },
-    { id: 'chat3', title: 'Семейный чат' },
   ],
   currentChatId: null,
 };
@@ -51,16 +50,19 @@ const chatsSlice = createSlice({
   name: 'chats',
   initialState: initialChatsState,
   reducers: {
-    addChat: (state, action: PayloadAction<{ id: string, title: string }>) => {
+    addChat: (state, action: PayloadAction<Chat>) => {
       state.chats.push(action.payload);
     },
     setCurrentChatId: (state, action: PayloadAction<string>) => {
       state.currentChatId = action.payload;
     },
+    setChats: (state, action: PayloadAction<Chat[]>) => {
+      state.chats = action.payload;
+    },
   },
 });
 
-export const { addChat, setCurrentChatId } = chatsSlice.actions;
+export const { addChat, setCurrentChatId, setChats } = chatsSlice.actions;
 
 // Current Chat Slice - Managing current chat data
 type CurrentChatState = {
@@ -68,45 +70,7 @@ type CurrentChatState = {
 };
 
 const initialCurrentChatState: CurrentChatState = {
-  currentChat: {
-    id: 'chat1',
-    title: 'Чат с друзьями',
-    participants: {
-      user123: {
-        id: 'user123',
-        username: 'Unknown User',
-        email: 'no.email@example.com',
-        avatar: '/unknown.png',
-      },
-      friend1: {
-        id: 'friend1',
-        username: 'Друг 1',
-        email: 'friend1@example.com',
-        avatar: '/unknown.png',
-      },
-      friend2: {
-        id: 'friend2',
-        username: 'Друг 2',
-        email: 'friend2@example.com',
-        avatar: '/unknown.png',
-      },
-    },
-    ownerId: 'user123',
-    messages: [
-      {
-        id: 'message1',
-        userId: 'friend1',
-        content: 'Привет! Как дела?',
-        images: [],
-      },
-      {
-        id: 'message2',
-        userId: 'user123',
-        content: 'Хорошо, спасибо!',
-        images: [],
-      },
-    ],
-  },
+  currentChat: null
 };
 
 const currentChatSlice = createSlice({
@@ -147,12 +111,7 @@ type AccountState = {
 };
 
 const initialAccountState: AccountState = {
-  account: {
-    id: 'user123',
-    username: 'Unknown User',
-    email: 'no.email@example.com',
-    avatar: '/unknown.png',
-  },
+  account: null
 };
 
 const accountSlice = createSlice({
@@ -175,11 +134,45 @@ const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3030/' }),
   endpoints: (builder) => ({
-    getChatList: builder.query<{ id: string; title: string }[], void>({
-      query: () => 'chats/list',
+    getChatList: builder.query<Chat[], void>({
+      query: () => ({
+        url: 'chats',
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      }),
+      transformResponse: (response: { data: Chat[] }) => response.data,
     }),
     getChat: builder.query<Chat, string>({
-      query: (chatId) => `chats/${chatId}`,
+      query: (chatId) => ({
+        url: `chats/${chatId}`,
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      }),
+      transformResponse: (response: Chat) => {
+        return {
+          ...response,
+          participants: typeof response.participants === 'string'
+            ? JSON.parse(response.participants)
+            : response.participants,
+        } as Chat;
+      },
+    }),
+    getMessagesByChatId: builder.query<Message[], string>({
+      query: (chatId) => ({
+        url: `messages`,
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        params: {
+          chatId,
+        },
+      }),
+      transformResponse: (response: { data: Message[] }) => response.data,
     }),
     createUser: builder.mutation<Account, Partial<Account>>({
       query: (newUser) => ({
@@ -212,11 +205,53 @@ const apiSlice = createApi({
       transformResponse: (response: { data: Account[] }) => {
         return response.data[0];
       },
-    }),    
+    }),
+    sendMessage: builder.mutation<Message, Partial<Message>>({
+      query: (newMessage) => {
+        return {
+          url: 'messages',
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+          },
+          body: {
+            chatId: newMessage.chatId,
+            userId: newMessage.userId,
+            content: newMessage.content,
+            images: newMessage.images,
+          },
+        };
+      },
+    }),
+    createChat: builder.mutation<Chat, Partial<Chat>>({
+      query: (newChat) => {
+        const participants = Object.keys(newChat.participants || {}).reduce((acc, userId, index) => {
+          const participant = newChat.participants?.[userId];
+          if (participant) {
+            acc[`user${index + 1}`] = participant;
+          }
+          return acc;
+        }, {} as { [key: string]: Account });
+
+        return {
+          url: 'chats',
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+          },
+          body: {
+            id: newChat.id,
+            title: newChat.title,
+            owner_id: newChat.ownerId,
+            participants,
+          },
+        };
+      },
+    }),
   }),
 });
 
-export const { useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useGetAccountByTokenQuery } = apiSlice;
+export const { useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useGetAccountByTokenQuery, useCreateChatMutation } = apiSlice;
 
 const controlSlice = createSlice({
   name: 'control',
