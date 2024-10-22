@@ -5,7 +5,6 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Provider } from 'react-redux';
 import { useDispatch, useSelector, TypedUseSelectorHook } from 'react-redux';
 import React from 'react';
-import { LocalParticipant } from './page';
 
 // Message Type
 export interface Message {
@@ -30,7 +29,7 @@ export interface Account {
 export interface Chat {
   id?: string;
   title: string;
-  participantIds: string[]; // Теперь массив ID участников
+  participants: { [key: string]: Account };
   ownerId: string;
   messages: Message[];
 }
@@ -93,21 +92,14 @@ const currentChatSlice = createSlice({
     },
     addParticipant: (state, action: PayloadAction<Account>) => {
       if (state.currentChat) {
-        // Добавляем ID участника в массив participantIds
-        if (!state.currentChat.participantIds.includes(action.payload.id)) {
-          state.currentChat.participantIds.push(action.payload.id);
-        }
+        state.currentChat.participants[action.payload.id] = action.payload;
       }
     },
     removeParticipant: (state, action: PayloadAction<string>) => {
       if (state.currentChat) {
-        // Удаляем ID участника из массива participantIds
-        state.currentChat.participantIds = state.currentChat.participantIds.filter(
-          (id) => id !== action.payload
-        );
+        delete state.currentChat.participants[action.payload];
       }
     },
-    
   },
 });
 
@@ -160,41 +152,13 @@ const apiSlice = createApi({
           Authorization: `Bearer ${localStorage.getItem('authToken')}`,
         },
       }),
-      transformResponse: async (response: Chat) => {
-        // Получаем участников по chatId
-        const participantIds = response.participantIds;
-        const participantDetails = await Promise.all(
-          participantIds.map(async (id) => {
-            const res = await fetch(`http://localhost:3030/users/${id}`, {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-              },
-            });
-            return res.json();
-          })
-        );
-        return { ...response, participants: participantDetails };
-      },
-    }),
-    getParticipantsByIds: builder.query<LocalParticipant[], string[]>({
-      query: (participantIds) => ({
-        url: `users`,
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        params: {
-          ids: participantIds.join(','), // Передаем IDs через параметры
-        },
-      }),
-      transformResponse: (response: { data: Account[] }) => {
-        return response.data.map((user) => ({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-        }));
+      transformResponse: (response: Chat) => {
+        return {
+          ...response,
+          participants: typeof response.participants === 'string'
+            ? JSON.parse(response.participants)
+            : response.participants,
+        } as Chat;
       },
     }),
     getMessagesByChatId: builder.query<Message[], string>({
@@ -243,107 +207,51 @@ const apiSlice = createApi({
       },
     }),
     sendMessage: builder.mutation<Message, Partial<Message>>({
-      query: (newMessage) => ({
-        url: 'messages',
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        body: {
-          chatId: newMessage.chatId,
-          userId: newMessage.userId,
-          content: newMessage.content,
-          images: newMessage.images,
-        },
-      }),
+      query: (newMessage) => {
+        return {
+          url: 'messages',
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+          },
+          body: {
+            chatId: newMessage.chatId,
+            userId: newMessage.userId,
+            content: newMessage.content,
+            images: newMessage.images,
+          },
+        };
+      },
     }),
     createChat: builder.mutation<Chat, Partial<Chat>>({
-      query: (newChat) => ({
-        url: 'chats',
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        body: {
-          id: newChat.id,
-          title: newChat.title,
-          owner_id: newChat.ownerId,
-        },
-      }),
-    }),
-    deleteChat: builder.mutation<void, string>({
-      query: (chatId) => ({
-        url: `chats/${chatId}`,
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      }),
-    }),
-    updateChatTitle: builder.mutation<Chat, { chatId: string; newTitle: string }>({
-      query: ({ chatId, newTitle }) => ({
-        url: `chats/${chatId}`,
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        body: {
-          title: newTitle,
-        },
-      }),
-    }),
-    findUserByEmail: builder.query<Account, { email: string }>({
-      query: ({ email }) => ({
-        url: `users?email=${email}`,
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      }),
-      transformResponse: (response: { data: Account[] }) => response.data[0],
-    }),
-    
-    addChatParticipant: builder.mutation<Chat, { chatId: string; userId: string }>({
-      query: ({ chatId, userId }) => ({
-        url: `chats/${chatId}/participants`,
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-        body: {
-          userId,
-        },
-      }),
-    }),
-    removeChatParticipant: builder.mutation<Chat, { chatId: string; userId: string }>({
-      query: ({ chatId, userId }) => ({
-        url: `chats/${chatId}/participants/${userId}`,
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      }),
+      query: (newChat) => {
+        const participants = Object.keys(newChat.participants || {}).reduce((acc, userId, index) => {
+          const participant = newChat.participants?.[userId];
+          if (participant) {
+            acc[`user${index + 1}`] = participant;
+          }
+          return acc;
+        }, {} as { [key: string]: Account });
+
+        return {
+          url: 'chats',
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+          },
+          body: {
+            id: newChat.id,
+            title: newChat.title,
+            owner_id: newChat.ownerId,
+            participants,
+          },
+        };
+      },
     }),
   }),
 });
 
-export const {
-  useAddChatParticipantMutation,
-  useRemoveChatParticipantMutation,
-  useUpdateChatTitleMutation,
-  useDeleteChatMutation,
-  useSendMessageMutation,
-  useGetMessagesByChatIdQuery,
-  useGetChatQuery,
-  useGetChatListQuery,
-  useCreateUserMutation,
-  useAuthenticateUserMutation,
-  useGetAccountByTokenQuery,
-  useCreateChatMutation,
-  useGetParticipantsByIdsQuery,
-  useFindUserByEmailQuery
-} = apiSlice;
-
+export const { useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useGetAccountByTokenQuery, useCreateChatMutation } = apiSlice;
 
 const controlSlice = createSlice({
   name: 'control',
