@@ -87,7 +87,6 @@
             font-size: 1.1rem;
             margin-bottom: 5px;
             margin-left: 10px;
-            color: #333;
         }
 
         &-buttons {
@@ -168,7 +167,7 @@
             border-color: #007bff;
             font-size: 1rem;
             font-weight: 550;   
-            background-color: #fff;
+            filter: brightness(1.4);
             box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
         }
     }
