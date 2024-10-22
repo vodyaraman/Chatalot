@@ -7,7 +7,7 @@ import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
-import ReduxProvider, { clearAccount, Message, Participant, setChats, useAddParticipantMutation, useCreateChatMutation, useGetAccountByTokenQuery, useGetMessagesByChatIdQuery, useGetUserByEmailQuery, useSendMessageMutation, useUpdateChatTitleMutation } from './api';
+import ReduxProvider, { clearAccount, Message, Participant, setChats, useAddParticipantMutation, useCreateChatMutation, useGetMessagesByChatIdQuery, useGetUserByEmailQuery, useSendMessageMutation, useUpdateChatTitleMutation } from './api';
 import { useAppSelector, useAppDispatch } from './api';
 import { setCurrentChatId, addParticipant, removeParticipant, setCurrentChat, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
 import { useGetChatQuery, useGetChatListQuery } from './api';
@@ -59,6 +59,7 @@ const Register = () => {
       await createUser({ email, password, username });
       const { data } = await authenticateUser({ email, password });
       if (data?.accessToken) {
+        localStorage.setItem('email', email);
         localStorage.setItem('authToken', data.accessToken);
         window.location.reload();
       }
@@ -132,6 +133,7 @@ const Login = () => {
     try {
       const { data } = await authenticateUser({ email, password });
       if (data?.accessToken) {
+        localStorage.setItem('email', email);
         localStorage.setItem('authToken', data.accessToken);
         window.location.reload();
       }
@@ -270,7 +272,6 @@ const Profile = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      console.log('Selected file:', file);
     }
   };
 
@@ -319,7 +320,6 @@ const ChatWindow = () => {
   const { data: chatData, isSuccess: chatSuccess } = useGetChatQuery(currentChatId || '', {
     skip: !currentChatId,
   });
-  console.log(currentChatId)
 
   useEffect(() => {
     if (chatSuccess && chatData) {
@@ -449,7 +449,6 @@ const ChatWindow = () => {
   const [addParticipantMutation] = useAddParticipantMutation(); // Мутация для добавления участника
   
   const handleAddParticipant = async () => {
-    // Устанавливаем email в состояние, чтобы триггернуть запрос
     setEmailToQuery(email);
   
     // Следим за изменениями userData, чтобы выполнить мутацию
@@ -467,6 +466,7 @@ const ChatWindow = () => {
             username: userData.username,
             avatar: userData.avatar,
           } as Participant;
+
           dispatch(addParticipant(newParticipant)); // Добавляем участника в состояние
         }
       } catch (error) {
@@ -688,9 +688,9 @@ export default function ChatApp() {
 
 function AuthenticatedApp() {
   const dispatch = useAppDispatch();
+  const email = localStorage.getItem('email') as any;
   
-  const { data: chatListData } = useGetChatListQuery();       // Переименовал data в chatListData
-  const { data: accountData } = useGetAccountByTokenQuery();
+  const { data: accountData } = useGetUserByEmailQuery(email);
 
   useEffect(() => {
     if (accountData) {
@@ -698,10 +698,12 @@ function AuthenticatedApp() {
     }
   }, [accountData, dispatch]);
 
+  const userId = accountData?.id as any;
+  const { data: chatListData } = useGetChatListQuery(userId);
+
   useEffect(() => {
     if (chatListData) {
-      console.log(chatListData);
-      dispatch(setChats(chatListData)); // Правильно обращаемся к chatListData.data для получения массива значений
+      dispatch(setChats(chatListData));
     }
   }, [chatListData, dispatch]);
 

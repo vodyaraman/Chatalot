@@ -147,16 +147,20 @@ const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3030/' }),
   endpoints: (builder) => ({
-    getChatList: builder.query<Chat[], void>({
-      query: () => ({
-        url: 'chats',
+    getChatList: builder.query<Chat[], string>({
+      query: (participantId) => ({
+        url: `chats`,
         method: 'GET',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('authToken')}`,
         },
+        params: {
+          userId: participantId
+        }
       }),
       transformResponse: (response: { data: Chat[] }) => response.data,
-    }),
+    }),    
+    
     getChat: builder.query<LocalChat, string>({
       query: (chatId) => ({
         url: `chats/${chatId}`,
@@ -174,10 +178,27 @@ const apiSlice = createApi({
             apiSlice.endpoints.getParticipants.initiate(chatId)
           );
     
-          // Собираем объект LocalChat
+          const exportParticipants = participantsResponse.data || [];
+    
+          // Получаем информацию о каждом участнике по userId
+          const participants = await Promise.all(
+            exportParticipants.map(async (exportParticipant : any) => {
+              const userResponse = await dispatch(
+                apiSlice.endpoints.getUserById.initiate(exportParticipant.userId)
+              );
+              const user = userResponse.data;
+              return {
+                id: exportParticipant.userId, // Используем id или userId
+                username: user?.username,
+                avatar: user?.avatar,
+              } as Participant;
+            })
+          );
+    
+          // Обновляем объект LocalChat с участниками
           const localChat: LocalChat = {
             ...chat,
-            participants: participantsResponse.data || [],
+            participants,
           };
     
           // Обновляем кэш с собранным объектом LocalChat
@@ -193,23 +214,38 @@ const apiSlice = createApi({
       transformResponse: (response: Chat) => {
         return {
           ...response,
-          participants: [],
+          participants: [], // Пока участники не загружены, оставляем пустой массив
         } as LocalChat;
-      } 
+      }
     }),
+    
+    
 
     getParticipants: builder.query<Participant[], string>({
       query: (chatId) => ({
-        url: `participants`, // Убираем chatId из URL
+        url: `participants`, 
         method: 'GET',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('authToken')}`,
         },
-        params: { // Передаём chatId как query parameter
+        params: {
           chatId: chatId,
         },
       }),
-    }),  
+      transformResponse: (response: { data: Participant[] }) => response.data,
+    }),
+    
+    getUserById: builder.query<Account, string>({
+      query: (userId) => ({
+        url: `users/${userId}`,
+        keepUnusedDataFor: 0,
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      }),
+    }),
+    
 
     getUserByEmail: builder.query<Account, string>({
       query: (email) => ({
@@ -265,27 +301,14 @@ const apiSlice = createApi({
       query: (credentials) => ({
         url: 'authentication',
         method: 'POST',
+        keepUnusedDataFor: 0,
         body: {
           strategy: 'local',
           ...credentials,
         },
       }),
     }),
-    getAccountByToken: builder.query<Account, string>({
-      query: (token) => ({
-        url: 'users',
-        method: 'GET',
-        headers: {
-          Authorization: token,
-        },
-        params: {
-          $limit: 10,
-        },
-      }),
-      transformResponse: (response: { data: Account[] }) => {
-        return response.data[0];
-      },
-    }),
+
     sendMessage: builder.mutation<Message, Partial<Message>>({
       query: (newMessage) => {
         return {
@@ -361,7 +384,7 @@ const apiSlice = createApi({
   }),
 });
 
-export const { useGetUserByEmailQuery, useUpdateChatTitleMutation, useGetParticipantsQuery, useAddParticipantMutation, useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useGetAccountByTokenQuery, useCreateChatMutation } = apiSlice;
+export const { useGetUserByEmailQuery, useUpdateChatTitleMutation, useGetParticipantsQuery, useAddParticipantMutation, useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useCreateChatMutation } = apiSlice;
 
 const controlSlice = createSlice({
   name: 'control',
