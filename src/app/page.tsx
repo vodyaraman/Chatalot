@@ -1,15 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
+//import feathersClient from './feathersClient';
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
-import feathersClient from './feathersClient';
-import ReduxProvider, { clearAccount, Message, setChats, useCreateChatMutation, useGetAccountByTokenQuery, useGetMessagesByChatIdQuery, useSendMessageMutation } from './api';
+import ReduxProvider, { clearAccount, Message, Participant, setChats, useAddParticipantMutation, useCreateChatMutation, useGetAccountByTokenQuery, useGetMessagesByChatIdQuery, useGetUserByEmailQuery, useSendMessageMutation, useUpdateChatTitleMutation } from './api';
 import { useAppSelector, useAppDispatch } from './api';
-import { setCurrentChatId, setCurrentChat, addParticipant, removeParticipant, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
+import { setCurrentChatId, addParticipant, removeParticipant, setCurrentChat, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
 import { useGetChatQuery, useGetChatListQuery } from './api';
 import "./mainpage.scss";
 
@@ -187,7 +187,7 @@ const Header = () => {
         </button>
       </div>
       <div className="header__account" onClick={handleAccountClick}>
-        <span className="header__username">{account?.username || 'Гость'}</span>
+        <span className="header__username" draggable="false">{account?.username || 'Гость'}</span>
         <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={45} height={45} className="header__profile-image" />
       </div>
     </header>
@@ -256,7 +256,7 @@ const Sidebar = () => {
 };
 
 
-const Account = () => {
+const Profile = () => {
   const account = useAppSelector((state) => state.account.account);
   const isProfileVisible = useAppSelector((state) => state.control.isProfileVisible);
   const dispatch = useAppDispatch();
@@ -310,6 +310,8 @@ const Account = () => {
 const ChatWindow = () => {
   const dispatch = useAppDispatch();
   const [sendMessage] = useSendMessageMutation();
+ // const [addChatParticipant] = useAddChatParticipantMutation();
+  const [changeTitle] = useUpdateChatTitleMutation();
   const [messages, setMessages] = useState<LocalMessage[]>([]);
 
   const currentChatId = useAppSelector((state) => state.chats.currentChatId);
@@ -317,6 +319,7 @@ const ChatWindow = () => {
   const { data: chatData, isSuccess: chatSuccess } = useGetChatQuery(currentChatId || '', {
     skip: !currentChatId,
   });
+  console.log(currentChatId)
 
   useEffect(() => {
     if (chatSuccess && chatData) {
@@ -341,7 +344,7 @@ const ChatWindow = () => {
         messagesData.map((message) => ({
           ...message,
           type: message.userId === accountId ? 'sent' : 'received',
-          avatar: chat?.participants[message.userId]?.avatar || '/unknown.png',
+          avatar: chat?.participants.find(p => p.id === message.userId)?.avatar || '/unknown.png', // находим участника по userId
         }))
       );
     } else if (chat?.messages) {
@@ -349,11 +352,12 @@ const ChatWindow = () => {
         chat.messages.map((message) => ({
           ...message,
           type: message.userId === accountId ? 'sent' : 'received',
-          avatar: chat?.participants[message.userId]?.avatar || '/unknown.png',
+          avatar: chat?.participants.find(p => p.id === message.userId)?.avatar || '/unknown.png', // находим участника по userId
         }))
       );
     }
   }, [isSuccess, messagesData, chat, accountId]);
+
 
 
   const participants = chat?.participants ? Object.values(chat.participants) : [];
@@ -362,6 +366,9 @@ const ChatWindow = () => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isManagingParticipants, setIsManagingParticipants] = useState(false);
   const manageParticipantsRef = useRef<HTMLDivElement | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailToQuery, setEmailToQuery] = useState<string | null>(null);
+  const [showEmailInput, setShowEmailInput] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [compiledMessages, setCompiledMessages] = useState<CompiledMessagesType>({});
 
@@ -402,9 +409,9 @@ const ChatWindow = () => {
         const updatedMessage: LocalMessage = {
           ...savedMessage,
           type: savedMessage.userId === accountId ? 'sent' : 'received',
-          avatar: chat?.participants[savedMessage.userId]?.avatar || '/unknown.png'
+          avatar: chat?.participants.find(p => p.id === savedMessage.userId)?.avatar || '/unknown.png',
         };
-      
+
         setMessages((prevMessages) => [...prevMessages, updatedMessage]);
         setInputValue('');
       } catch (error) {
@@ -416,26 +423,56 @@ const ChatWindow = () => {
 
 
   const toggleEditTitle = () => {
-    setIsEditingTitle(!isEditingTitle);
+    setIsEditingTitle(!isEditingTitle);  // Переключаем режим редактирования
+  };
+
+  const saveTitle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (chat?.id) {
+      console.log(e.target.value)
+      await changeTitle({ chatId: chat.id, newTitle: e.target.value });  // Сохраняем новый заголовок на сервере
+    }
+    setIsEditingTitle(false);  // Выключаем режим редактирования после сохранения
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setCurrentChatTitle(e.target.value));
+    dispatch(setCurrentChatTitle(e.target.value));  // Обновляем заголовок в состоянии
   };
 
   const toggleManageParticipants = () => {
     setIsManagingParticipants(!isManagingParticipants);
   };
 
-  const handleAddParticipant = () => {
-    const newParticipant = {
-      id: `participant_${participants.length + 1}`,
-      username: `Участник ${participants.length + 1}`,
-      email: 'no.email@example.com',
-      avatar: '/unknown.png',
-      isAdmin: false,
-    };
-    dispatch(addParticipant(newParticipant));
+  const { data: userData } = useGetUserByEmailQuery(emailToQuery || '', {
+    skip: !emailToQuery, // Пропускаем запрос, если emailToQuery не установлен
+  });
+  
+  const [addParticipantMutation] = useAddParticipantMutation(); // Мутация для добавления участника
+  
+  const handleAddParticipant = async () => {
+    // Устанавливаем email в состояние, чтобы триггернуть запрос
+    setEmailToQuery(email);
+  
+    // Следим за изменениями userData, чтобы выполнить мутацию
+    if (userData && chat) {
+      try {
+        // Добавляем участника
+        const data = await addParticipantMutation({
+          userId: userData.id,
+          chatId: chat.id,
+        }).unwrap();
+  
+        if (data) {
+          const newParticipant = {
+            id: data.id,
+            username: userData.username,
+            avatar: userData.avatar,
+          } as Participant;
+          dispatch(addParticipant(newParticipant)); // Добавляем участника в состояние
+        }
+      } catch (error) {
+        console.error('Ошибка при добавлении участника:', error);
+      }
+    }
   };
 
   const handleRemoveParticipant = (id: string) => {
@@ -478,8 +515,8 @@ const ChatWindow = () => {
             <input
               type="text"
               value={chatTitle}
+              onBlur={saveTitle}
               onChange={handleTitleChange}
-              onBlur={toggleEditTitle}
               className="chat-window__title-input"
               ref={inputRef}
             />
@@ -487,29 +524,44 @@ const ChatWindow = () => {
         ) : (
           <div className="flex-div">
             <h2 className="chat-window__title" onClick={toggleEditTitle}>
-              {participants.length > 2 ? chatTitle || 'Чат с друзьями' : `Чат с ${participants.find((p) => p.id !== 'me')?.username}`}
+              {(participants || []).length > 0 ? chatTitle : "Выберите чат, чтобы начать работу"}
             </h2>
-            {participants.length > 2 && (
-              <button onClick={toggleEditTitle} className="chat-window__edit-title-button">
-                <Image src="/rename.png" alt="Редактировать" width={20} height={20} />
-              </button>
-            )}
+            <button onClick={toggleEditTitle} className="chat-window__edit-title-button">
+              <Image src="/rename.png" alt="Редактировать" width={20} height={20} />
+            </button>
           </div>
         )}
-        <div className="flex-div">
-          <div className="chat-window__participants">Участников: {participants.length}</div>
-          <button onClick={toggleManageParticipants} className="chat-window__manage-participants-button">
-            <Image src="/burger.png" alt="Управление участниками" width={15} height={15} />
-          </button>
-        </div>
+        {(participants || []).length > 0 && (
+          <div className="flex-div">
+            <div className="chat-window__participants">Участников: {(participants || []).length}</div>
+            <button onClick={toggleManageParticipants} className="chat-window__manage-participants-button">
+              <Image src="/burger.png" alt="Управление участниками" width={15} height={15} />
+            </button>
+          </div>
+        )}
       </div>
 
       {isManagingParticipants && (
         <div className="chat-window__manage-participants" ref={manageParticipantsRef}>
           Управление участниками
-          <button onClick={handleAddParticipant} className="add-participant-button">
-            Пригласить
-          </button>
+          {!showEmailInput ? (
+            <button onClick={() => setShowEmailInput(true)} className="add-participant-button">
+              Пригласить
+            </button>
+          ) : (
+            <div className="invite-participant">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Введите email участника"
+                className="invite-participant-input"
+              />
+              <button onClick={handleAddParticipant} className="confirm-add-participant-button">
+                ✅
+              </button>
+            </div>
+          )}
           <button onClick={toggleManageParticipants} className="close-manage-participants-button">
             Закрыть
           </button>
@@ -636,9 +688,9 @@ export default function ChatApp() {
 
 function AuthenticatedApp() {
   const dispatch = useAppDispatch();
-
-  const { data: accountData } = useGetAccountByTokenQuery();  // Переименовал data в accountData
+  
   const { data: chatListData } = useGetChatListQuery();       // Переименовал data в chatListData
+  const { data: accountData } = useGetAccountByTokenQuery();
 
   useEffect(() => {
     if (accountData) {
@@ -659,7 +711,7 @@ function AuthenticatedApp() {
       <div className="chat-app__body">
         <Sidebar />
         <ChatWindow />
-        <Account />
+        <Profile />
       </div>
     </>
   );
