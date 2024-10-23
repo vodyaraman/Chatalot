@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @next/next/no-img-element */
 "use client"
 //import feathersClient from './feathersClient';
@@ -7,7 +8,7 @@ import * as runtime from 'react/jsx-runtime';
 import { evaluate } from '@mdx-js/mdx';
 import { MDXProvider } from '@mdx-js/react';
 import TextareaAutosize from 'react-textarea-autosize';
-import ReduxProvider, { clearAccount, Message, Participant, setChats, useAddParticipantMutation, useCreateChatMutation, useGetMessagesByChatIdQuery, useGetUserByEmailQuery, useSendMessageMutation, useUpdateChatTitleMutation } from './api';
+import ReduxProvider, { clearAccount, clearCurrentChat, Message, Participant, removeChat, setChats, updateAccount, useAddParticipantMutation, useCreateChatMutation, useDeleteChatMutation, useDeleteParticipantMutation, useGetMessagesByChatIdQuery, useGetUserByEmailQuery, useSendMessageMutation, useUpdateAccountMutation, useUpdateChatTitleMutation } from './api';
 import { useAppSelector, useAppDispatch } from './api';
 import { setCurrentChatId, addParticipant, removeParticipant, setCurrentChat, setCurrentChatTitle, addChat, toggleSidebar, toggleProfile, useCreateUserMutation, useAuthenticateUserMutation, setAccount } from './api';
 import { useGetChatQuery, useGetChatListQuery } from './api';
@@ -213,15 +214,7 @@ const Sidebar = () => {
     if (account) {
       const newChat = {
         title: 'Новый чат',
-        ownerId: account?.id,
-        participants: {
-          'user1': {
-            id: account.id,
-            username: account.username,
-            email: account.email,
-            avatar: account.avatar
-          }
-        }
+        owner_id: account?.id,
       };
       createChat(newChat)
         .unwrap()
@@ -263,6 +256,13 @@ const Profile = () => {
   const isProfileVisible = useAppSelector((state) => state.control.isProfileVisible);
   const dispatch = useAppDispatch();
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [username, setUsername] = useState(account?.username || '');
+  const [password, setPassword] = useState('');
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(account?.avatar || null);
+  const [updateAccountMutation] = useUpdateAccountMutation();
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     dispatch(clearAccount());
@@ -272,6 +272,57 @@ const Profile = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      setAvatar(file);
+      setAvatarPreview(URL.createObjectURL(file)); // Устанавливаем предварительный просмотр
+      console.log(file);
+    }
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setAvatarPreview(account?.avatar || null); // Возвращаем исходное изображение при отмене
+  };
+
+  const handleConfirm = async () => {
+    try {
+      let avatarData = account?.avatar;
+
+      if (avatar) {
+        // Сохраняем изображение в формате base64 для хранения в MySQL
+        const reader = new FileReader();
+        reader.readAsDataURL(avatar);
+        await new Promise<void>((resolve, reject) => {
+          reader.onload = () => {
+            if (typeof reader.result === 'string') {
+              avatarData = reader.result;
+              resolve();
+            } else {
+              reject(new Error('Ошибка при чтении файла аватара'));
+            }
+          };
+          reader.onerror = () => reject(new Error('Ошибка при чтении файла аватара'));
+        });
+      }
+
+      const updatedAccount = {
+        id: account?.id,
+        username: username || account?.username,
+        password: password || account?.password,
+        avatar: avatarData,
+      }; // Обновляемые данные
+
+      await updateAccountMutation(updatedAccount).unwrap(); // Отправляем запрос на сервер
+      
+      // Обновляем состояние Redux вручную через экшен
+      dispatch(updateAccount({ username: updatedAccount.username, password: updatedAccount.password, avatar: updatedAccount.avatar }));
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Ошибка при обновлении профиля:', error);
     }
   };
 
@@ -283,7 +334,13 @@ const Profile = () => {
     <div className="account">
       <h2 className="account__title">Мой Аккаунт</h2>
       <div className="account__details">
-        <Image src={account?.avatar || "/unknown.png"} alt="Профиль" width={50} height={50} className="account__profile-image" />
+        <Image
+          src={avatarPreview || '/unknown.png'}
+          alt="Профиль"
+          width={50}
+          height={50}
+          className="account__profile-image"
+        />
         <div className="account__upload-photo">
           <input
             type="file"
@@ -296,10 +353,49 @@ const Profile = () => {
           </label>
         </div>
         <div className="account__info">
-          <span><h4>Логин:</h4> <p>{account?.username}</p></span>
-          <span><h4>Email:</h4> <p>{account?.email}</p></span>
-          <button className="account__edit-button">Редактировать</button>
-          <button className="account__logout-button" onClick={handleLogout}>Выйти из аккаунта</button>
+          {isEditing ? (
+            <>
+              <div className="account__field">
+                <label htmlFor="username">Логин:</label>
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+              <div className="account__field">
+                <label htmlFor="password">Пароль:</label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <button className="account__confirm-button" onClick={handleConfirm}>
+                Подтвердить
+              </button>
+              <button className="account__cancel-button" onClick={handleCancel}>
+                Отменить
+              </button>
+            </>
+          ) : (
+            <>
+              <span>
+                <h4>Логин:</h4> <p>{account?.username}</p>
+              </span>
+              <span>
+                <h4>Email:</h4> <p>{account?.email}</p>
+              </span>
+              <button className="account__edit-button" onClick={handleEdit}>
+                Редактировать
+              </button>
+            </>
+          )}
+          <button className="account__logout-button" onClick={handleLogout}>
+            Выйти из аккаунта
+          </button>
         </div>
       </div>
     </div>
@@ -307,11 +403,10 @@ const Profile = () => {
 };
 
 
-
 const ChatWindow = () => {
   const dispatch = useAppDispatch();
   const [sendMessage] = useSendMessageMutation();
- // const [addChatParticipant] = useAddChatParticipantMutation();
+  // const [addChatParticipant] = useAddChatParticipantMutation();
   const [changeTitle] = useUpdateChatTitleMutation();
   const [messages, setMessages] = useState<LocalMessage[]>([]);
 
@@ -329,9 +424,6 @@ const ChatWindow = () => {
 
   const chat = useAppSelector((state) => state.currentChat.currentChat);
   const accountId = useAppSelector((state) => state.account.account?.id ?? '');
-
-  // Проверяем, является ли текущий пользователь администратором
-  const isAdmin = chat?.ownerId === accountId;
 
   // Запрашиваем сообщения для текущего чата
   const { data: messagesData, isSuccess } = useGetMessagesByChatIdQuery(chat?.id || '', {
@@ -360,7 +452,14 @@ const ChatWindow = () => {
 
 
 
-  const participants = chat?.participants ? Object.values(chat.participants) : [];
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    if (chat?.participants) {
+      setParticipants(Object.values(chat.participants));
+    }
+  }, [chat?.participants]);
+
   const chatTitle = chat?.title || '';
   const [inputValue, setInputValue] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -445,12 +544,12 @@ const ChatWindow = () => {
   const { data: userData } = useGetUserByEmailQuery(emailToQuery || '', {
     skip: !emailToQuery, // Пропускаем запрос, если emailToQuery не установлен
   });
-  
+
   const [addParticipantMutation] = useAddParticipantMutation(); // Мутация для добавления участника
-  
+
   const handleAddParticipant = async () => {
     setEmailToQuery(email);
-  
+
     // Следим за изменениями userData, чтобы выполнить мутацию
     if (userData && chat) {
       try {
@@ -459,7 +558,7 @@ const ChatWindow = () => {
           userId: userData.id,
           chatId: chat.id,
         }).unwrap();
-  
+
         if (data) {
           const newParticipant = {
             id: data.id,
@@ -473,10 +572,6 @@ const ChatWindow = () => {
         console.error('Ошибка при добавлении участника:', error);
       }
     }
-  };
-
-  const handleRemoveParticipant = (id: string) => {
-    dispatch(removeParticipant(id));
   };
 
   useEffect(() => {
@@ -506,6 +601,41 @@ const ChatWindow = () => {
       document.removeEventListener('mousedown', handleClick);
     };
   }, [isManagingParticipants]);
+
+  const [deleteChat] = useDeleteChatMutation();
+
+  const handleDeleteChat = async (chatId: string) => {
+    const go = confirm(`Удалить ${chat?.title}?`);
+    if (go) {
+      try {
+        await deleteChat(chatId).unwrap();
+        dispatch(removeChat(chatId));
+        localStorage.setItem('currentChatId', "");
+        dispatch(clearCurrentChat());
+        setIsManagingParticipants(!isManagingParticipants)
+        console.log('Chat deleted successfully');
+      } catch (error) {
+        console.error('Failed to delete chat:', error);
+      }
+    }
+  };
+
+  const [deleteParticipant] = useDeleteParticipantMutation();
+
+  const handleDeleteParticipant = async (id: string, username: string) => {
+    const go = confirm(`Выгнать ${username}?`);
+    if (go) {
+      try {
+        await deleteParticipant(id).unwrap();
+        setParticipants(participants.filter((participant) => participant.id !== id));
+        console.log('Participant deleted successfully');
+        dispatch(removeParticipant(id));
+      } catch (error) {
+        console.error('Failed to delete participant:', error);
+      }
+    }
+  };
+  const isAdmin = chat?.owner_id === accountId;
 
   return (
     <div className="chat-window">
@@ -543,10 +673,9 @@ const ChatWindow = () => {
 
       {isManagingParticipants && (
         <div className="chat-window__manage-participants" ref={manageParticipantsRef}>
-          Управление участниками
           {!showEmailInput ? (
             <button onClick={() => setShowEmailInput(true)} className="add-participant-button">
-              Пригласить
+              Пригласить участника по email
             </button>
           ) : (
             <div className="invite-participant">
@@ -554,6 +683,8 @@ const ChatWindow = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                ref={inputRef}
+                onBlur={()=>{setShowEmailInput(!showEmailInput)}}
                 placeholder="Введите email участника"
                 className="invite-participant-input"
               />
@@ -565,16 +696,19 @@ const ChatWindow = () => {
           <button onClick={toggleManageParticipants} className="close-manage-participants-button">
             Закрыть
           </button>
+          <button className="delete-chat-button" onClick={() => handleDeleteChat(chat?.id as any)}>
+            Удалить чат
+          </button>
           <ul className="participants-list">
-            {participants.map((participant) => (
+            {chat?.participants.map((participant) => (
               <li key={participant.id} className="participant-item">
                 <Image src={participant.avatar} alt={participant.username} width={30} height={30} />
                 <span>
                   {participant.username}
                 </span>
                 {isAdmin && (
-                  <button onClick={() => handleRemoveParticipant(participant.id)} className="remove-participant-button">
-                    Удалить
+                  <button onClick={() => handleDeleteParticipant(participant.p_id as any, participant.username)} className="remove-participant-button">
+                    Выгнать
                   </button>
                 )}
               </li>
@@ -618,27 +752,28 @@ const ChatWindow = () => {
         })}
       </div>
 
-
-      <div className="chat-window__input">
-        <TextareaAutosize
-          minRows={1}
-          maxRows={6}
-          placeholder="Введите сообщение..."
-          className="chat-window__input-field"
-          value={inputValue}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
-          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          style={{ resize: 'none' }}
-        />
-        <button className="chat-window__input-button" onClick={handleSendMessage}>
-          <Image src="/sendmessage.svg" alt="Отправить" width={21} height={21} />
-        </button>
-      </div>
+      {chat &&
+        <div className="chat-window__input">
+          <TextareaAutosize
+            minRows={1}
+            maxRows={6}
+            placeholder="Введите сообщение..."
+            className="chat-window__input-field"
+            value={inputValue}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            style={{ resize: 'none' }}
+          />
+          <button className="chat-window__input-button" onClick={handleSendMessage}>
+            <Image src="/sendmessage.svg" alt="Отправить" width={21} height={21} />
+          </button>
+        </div>
+      }
     </div>
   );
 };
@@ -689,7 +824,7 @@ export default function ChatApp() {
 function AuthenticatedApp() {
   const dispatch = useAppDispatch();
   const email = localStorage.getItem('email') as any;
-  
+
   const { data: accountData } = useGetUserByEmailQuery(email);
 
   useEffect(() => {

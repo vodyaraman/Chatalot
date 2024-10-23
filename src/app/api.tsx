@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Redux Slice Setup for State Management with RTK Query
 
 import { configureStore, createSlice, PayloadAction } from '@reduxjs/toolkit';
@@ -27,6 +28,7 @@ export interface Account {
 
 export interface Participant {
   id: string;
+  p_id?: string;
   username: string;
   avatar: string;
 }
@@ -41,7 +43,7 @@ export interface ExportParticipant {
 export interface Chat {
   id?: string;
   title: string;
-  ownerId: string;
+  owner_id: string;
   messages: Message[];
 }
 
@@ -73,10 +75,13 @@ const chatsSlice = createSlice({
     setChats: (state, action: PayloadAction<Chat[]>) => {
       state.chats = action.payload;
     },
+    removeChat: (state, action: PayloadAction<string>) => {
+      state.chats = state.chats.filter(chat => chat.id !== action.payload);
+    },
   },
 });
 
-export const { addChat, setCurrentChatId, setChats } = chatsSlice.actions;
+export const { addChat, setCurrentChatId, setChats, removeChat } = chatsSlice.actions;
 
 type CurrentChatState = {
   currentChat: LocalChat | null;
@@ -113,10 +118,13 @@ const currentChatSlice = createSlice({
         state.currentChat.participants = state.currentChat.participants.filter(participant => participant.id !== action.payload); // удаляем участника из currentChat
       }
     },
+    clearCurrentChat: (state) => {
+      state.currentChat = null;
+    },
   },
 });
 
-export const { addParticipant, removeParticipant, setCurrentChat, addMessage, setCurrentChatTitle } = currentChatSlice.actions;
+export const { clearCurrentChat, addParticipant, removeParticipant, setCurrentChat, addMessage, setCurrentChatTitle } = currentChatSlice.actions;
 
 // Participants Slice - Managing participants data
 type AccountState = {
@@ -137,10 +145,18 @@ const accountSlice = createSlice({
     clearAccount: (state) => {
       state.account = null;
     },
+    updateAccount: (state, action: PayloadAction<Partial<Account>>) => {
+      if (state.account) {
+        state.account = {
+          ...state.account,
+          ...action.payload,
+        };
+      }
+    },
   },
 });
 
-export const { setAccount, clearAccount } = accountSlice.actions;
+export const { setAccount, clearAccount, updateAccount } = accountSlice.actions;
 
 // API Slice - Managing API requests with RTK Query
 const apiSlice = createApi({
@@ -188,7 +204,8 @@ const apiSlice = createApi({
               );
               const user = userResponse.data;
               return {
-                id: exportParticipant.userId, // Используем id или userId
+                id: exportParticipant.userId,
+                p_id: exportParticipant.id,
                 username: user?.username,
                 avatar: user?.avatar,
               } as Participant;
@@ -336,9 +353,8 @@ const apiSlice = createApi({
             Authorization: `Bearer ${localStorage.getItem('authToken')}`,
           },
           body: {
-            id: newChat.id,
             title: newChat.title,
-            owner_id: newChat.ownerId,
+            owner_id: newChat.owner_id,
           },
         });
     
@@ -356,7 +372,7 @@ const apiSlice = createApi({
           },
           body: {
             chatId: createdChat.id,
-            userId: newChat.ownerId,
+            userId: newChat.owner_id,
           },
         });
     
@@ -380,11 +396,43 @@ const apiSlice = createApi({
           title: newTitle,
         },
       }),
-    }),  
+    }),
+    
+    deleteChat: builder.mutation<void, string>({
+      query: (chatId) => ({
+        url: `chats/${chatId}`,
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      }),
+    }),
+    
+    deleteParticipant: builder.mutation<void, string>({
+      query: (id) => ({
+        url: `participants/${id}`, // Конечная точка для удаления участника
+        method: 'DELETE', // Используем метод DELETE
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`, // Токен для авторизации
+        },
+      }),
+    }),
+
+    updateAccount: builder.mutation<Account, Partial<Account>>({
+      query: (account) => ({
+        url: `users/${account.id}`,
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        body: account,
+      }),
+    }),
+
   }),
 });
 
-export const { useGetUserByEmailQuery, useUpdateChatTitleMutation, useGetParticipantsQuery, useAddParticipantMutation, useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useCreateChatMutation } = apiSlice;
+export const { useUpdateAccountMutation, useDeleteChatMutation, useDeleteParticipantMutation, useGetUserByEmailQuery, useUpdateChatTitleMutation, useGetParticipantsQuery, useAddParticipantMutation, useSendMessageMutation, useGetMessagesByChatIdQuery, useGetChatQuery, useGetChatListQuery, useCreateUserMutation, useAuthenticateUserMutation, useCreateChatMutation } = apiSlice;
 
 const controlSlice = createSlice({
   name: 'control',

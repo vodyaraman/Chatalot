@@ -1,13 +1,14 @@
 @keyframes fadeInFromCenter {
     0% {
-      opacity: 0;
-      transform: scale(0.5);
+        opacity: 0;
+        transform: scale(0.5);
     }
+
     100% {
-      opacity: 1;
-      transform: scale(1);
+        opacity: 1;
+        transform: scale(1);
     }
-  }
+}
 
 @keyframes slide-left {
     0% {
@@ -33,6 +34,18 @@
     }
 }
 
+@keyframes slide-down {
+    0% {
+        transform: translateY(-10%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}   
+
 .chat-app {
     height: 100vh;
     display: flex;
@@ -52,7 +65,7 @@
         width: 100vw;
         height: 100vh;
         flex-direction: row;
-        
+
     }
 
     &__auth-image {
@@ -119,7 +132,8 @@
     }
 }
 
-.login, .register {
+.login,
+.register {
     text-align: center;
     padding: 20px;
     border-radius: 8px;
@@ -145,6 +159,7 @@
         width: 100%;
         text-align: left;
         flex-direction: row-reverse;
+
         input {
             margin-left: 5px;
             margin-right: 5px;
@@ -166,7 +181,7 @@
         &:focus {
             border-color: #007bff;
             font-size: 1rem;
-            font-weight: 550;   
+            font-weight: 550;
             filter: brightness(1.4);
             box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
         }
@@ -309,6 +324,7 @@
         margin: 5px;
         border-top: 1px solid #48494b8f;
         border-bottom: 1px solid #48494b8f;
+        animation: slide-left 0.3s ease-in-out;
 
         &:hover {
             scale: 1.02;
@@ -387,18 +403,6 @@
 
         animation: slide-down 0.3s ease-in-out;
 
-        @keyframes slide-down {
-            0% {
-                transform: translateY(-10%);
-                opacity: 0;
-            }
-
-            100% {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
         .participants-list {
             list-style: none;
             padding: 0;
@@ -409,9 +413,10 @@
             display: flex;
             align-items: center;
             margin-bottom: 10px;
+            animation: slide-left 0.3s ease-in-out;
 
             span {
-                margin-left: 5px;
+                margin-left: 10px;
             }
 
             .remove-participant-button {
@@ -428,10 +433,24 @@
             }
         }
 
+        .invite-participant {
+            & input {
+                margin-top: 10px;
+                margin-bottom: 5px;
+                border-radius: 5px;
+                font-size: 1rem;
+                font-weight: 600;
+                background-color: transparent;
+                width: fit-content;
+                border: none;
+            }
+        }
+
         .add-participant-button,
-        .close-manage-participants-button {
+        .close-manage-participants-button,
+        .confirm-add-participant-button {
+            margin: 5px;
             padding: 3px;
-            margin-left: 10px;
             font-weight: 600;
             border: none;
             border-radius: 5px;
@@ -442,6 +461,22 @@
                 background-color: #2980b9;
             }
         }
+
+        .delete-chat-button {
+            float: right;
+            border: none;
+            padding: 3px 6px;
+            margin-left: 10px;
+            font-weight: 600;
+            border-radius: 5px;
+            background-color: #b92929;
+            color: #fff;
+
+            &:hover {
+                background-color: #881717;
+            }
+        }
+
     }
 
     &__messages {
@@ -636,7 +671,10 @@
         }
     }
 
-    &__edit-button, &__logout-button {
+    &__edit-button,
+    &__logout-button,
+    &__confirm-button,
+    &__cancel-button {
         width: 50%;
         margin-top: 10px;
         padding: 5px 0px;
@@ -659,6 +697,26 @@
 
         &:hover {
             background-color: #b92929;
+        }
+    }
+
+    &__field {
+        & input {
+            padding: 5px;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            background-color: transparent;
+            width: 100%;
+            min-width: 200px;
+            scale: 0.99;
+            
+            &:hover {
+                filter: brightness(1.2);
+                scale: 1;
+            }
         }
     }
 }
